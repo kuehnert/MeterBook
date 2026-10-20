@@ -1,0 +1,45 @@
+{
+  "name": "meterbook-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MeterBook backend – Zählerstände, Verbrauch, Kosten, Berichte",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "dev": "tsc -p tsconfig.build.json && node --env-file-if-exists=.env dist/main.js",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "postinstall": "prisma generate",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
+    "@nestjs/common": "11.2.7",
+    "@nestjs/core": "11.2.7",
+    "@nestjs/jwt": "11.0.2",
+    "@nestjs/platform-express": "11.2.7",
+    "@nestjs/serve-static": "5.0.5",
+    "@prisma/client": "6.19.3",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "exceljs": "4.4.0",
+    "pdfkit": "0.20.2",
+    "prisma": "6.19.3",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/multer": "2.3.0",
+    "@types/node": "24.19.2",
+    "@types/pdfkit": "0.17.6",
+    "typescript": "5.9.3"
+  },
+  "allowScripts": {
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true
+  }
+}

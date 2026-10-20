@@ -1,0 +1,180 @@
+// MeterBook – Datenmodell
+//
+// Ein Zähler (Meter) ist eine Messstelle, z. B. "Heizstrom". Er hat ein oder mehrere
+// Zählwerke (Register), z. B. HT und NT. Ablesungen (Reading) gehören immer zu einem
+// Zählwerk. Wird das Gerät getauscht, hält ein MeterExchange Endstand des alten und
+// Anfangsstand des neuen Geräts fest, damit die Verbrauchsreihe durchgängig bleibt.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String
+  passwordHash String
+  /// ADMIN | USER
+  role         String         @default("USER")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  meters       Meter[]
+  photos       Photo[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  device    String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Meter {
+  id                String           @id @default(cuid())
+  userId            String
+  name              String
+  /// ELECTRICITY | WATER | GAS | HEAT | OTHER
+  medium            String
+  unit              String
+  serialNumber      String?
+  location          String?
+  notes             String?
+  /// Zusätzliche Hinweise für die automatische Erkennung, z. B. "rote Ziffern sind Nachkommastellen"
+  ocrHint           String?
+  /// Beginn der Abrechnungsperiode (Monat 1–12, Tag 1–28)
+  billingStartMonth Int              @default(1)
+  billingStartDay   Int              @default(1)
+  archived          Boolean          @default(false)
+  sortOrder         Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registers         Register[]
+  tariffs           Tariff[]
+  advancePayments   AdvancePayment[]
+  photos            Photo[]
+
+  @@index([userId])
+}
+
+model Register {
+  id         String            @id @default(cuid())
+  meterId    String
+  name       String
+  /// Kurzbezeichnung, z. B. HT, NT, 1.8.0
+  code       String?
+  /// Anzahl der Nachkommastellen auf dem Zählwerk
+  decimals   Int               @default(1)
+  sortOrder  Int               @default(0)
+  meter      Meter             @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  readings   Reading[]
+  exchanges  MeterExchange[]
+  prices     TariffComponent[]
+
+  @@index([meterId])
+}
+
+model Reading {
+  id            String   @id @default(cuid())
+  registerId    String
+  readAt        DateTime
+  value         Decimal
+  /// MANUAL | PHOTO | IMPORT
+  source        String   @default("MANUAL")
+  photoId       String?
+  /// Wert, den die automatische Erkennung vorgeschlagen hat
+  ocrValue      Decimal?
+  ocrConfidence Float?
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  register      Register @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  photo         Photo?   @relation(fields: [photoId], references: [id], onDelete: SetNull)
+
+  @@index([registerId, readAt])
+}
+
+model Photo {
+  id        String    @id @default(cuid())
+  userId    String
+  meterId   String
+  takenAt   DateTime
+  width     Int?
+  height    Int?
+  /// NONE | DONE | FAILED
+  ocrStatus String    @default("NONE")
+  /// JSON mit dem Ergebnis der Erkennung
+  ocrResult String?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meter     Meter     @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  readings  Reading[]
+
+  @@index([meterId])
+}
+
+model MeterExchange {
+  id              String   @id @default(cuid())
+  registerId      String
+  exchangedAt     DateTime
+  oldFinalValue   Decimal
+  newInitialValue Decimal
+  note            String?
+  createdAt       DateTime @default(now())
+  register        Register @relation(fields: [registerId], references: [id], onDelete: Cascade)
+
+  @@index([registerId])
+}
+
+/// Ein Tarif gilt ab validFrom bis zum validFrom des nächsten Tarifs desselben Zählers.
+model Tariff {
+  id                String            @id @default(cuid())
+  meterId           String
+  name              String?
+  validFrom         DateTime
+  /// Grundpreis in € pro Monat (brutto)
+  basePricePerMonth Decimal           @default(0)
+  createdAt         DateTime          @default(now())
+  meter             Meter             @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  components        TariffComponent[]
+
+  @@index([meterId, validFrom])
+}
+
+/// Arbeitspreis je Einheit für ein Zählwerk. Mehrere Komponenten je Zählwerk sind
+/// möglich, z. B. Frischwasser und Abwasser.
+model TariffComponent {
+  id           String   @id @default(cuid())
+  tariffId     String
+  registerId   String
+  label        String
+  /// € pro Einheit (brutto)
+  pricePerUnit Decimal
+  tariff       Tariff   @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+  register     Register @relation(fields: [registerId], references: [id], onDelete: Cascade)
+
+  @@index([tariffId])
+}
+
+/// Monatlicher Abschlag an den Versorger, gültig ab validFrom.
+model AdvancePayment {
+  id             String   @id @default(cuid())
+  meterId        String
+  validFrom      DateTime
+  amountPerMonth Decimal
+  note           String?
+  meter          Meter    @relation(fields: [meterId], references: [id], onDelete: Cascade)
+
+  @@index([meterId, validFrom])
+}
