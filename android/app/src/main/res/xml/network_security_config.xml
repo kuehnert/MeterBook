@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Unverschlüsseltes HTTP ist erlaubt, damit der Server im Heimnetz auch ohne Tunnel
+     erreichbar ist (z. B. http://192.168.1.10:3000). Über das Internet immer HTTPS nutzen. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

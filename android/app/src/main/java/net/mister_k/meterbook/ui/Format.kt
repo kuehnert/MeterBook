@@ -1,0 +1,58 @@
+package net.mister_k.meterbook.ui
+
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Thermostat
+import androidx.compose.material.icons.outlined.WaterDrop
+import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.ui.graphics.vector.ImageVector
+import java.text.NumberFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val DE = Locale.GERMANY
+
+fun num(v: Double?, digits: Int = 1): String {
+    if (v == null) return "–"
+    val f = NumberFormat.getNumberInstance(DE)
+    f.minimumFractionDigits = digits
+    f.maximumFractionDigits = digits
+    return f.format(v)
+}
+
+fun eur(v: Double?): String = if (v == null) "–" else NumberFormat.getCurrencyInstance(DE).format(v)
+
+private val dateFmt = DateTimeFormatter.ofPattern("dd.MM.yyyy", DE)
+private val dateTimeFmt = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", DE)
+
+fun date(iso: String?): String = iso?.let { dateFmt.format(Instant.parse(it).atZone(ZoneId.systemDefault())) } ?: "–"
+fun dateTime(iso: String?): String = iso?.let { dateTimeFmt.format(Instant.parse(it).atZone(ZoneId.systemDefault())) } ?: "–"
+
+fun daysAgo(n: Int?): String = when (n) {
+    null -> "noch nie abgelesen"
+    0 -> "heute abgelesen"
+    1 -> "gestern abgelesen"
+    else -> "vor $n Tagen abgelesen"
+}
+
+fun mediumIcon(medium: String): ImageVector = when (medium) {
+    "ELECTRICITY" -> Icons.Outlined.Bolt
+    "WATER" -> Icons.Outlined.WaterDrop
+    "GAS" -> Icons.Outlined.LocalFireDepartment
+    "HEAT" -> Icons.Outlined.Thermostat
+    else -> Icons.Outlined.Speed
+}
+
+/** Liest eine Zahl mit deutschem Komma (29.789,6) oder Punkt (29789.6). */
+fun parseNumber(s: String): Double? {
+    var t = s.trim().replace(" ", "")
+    if (t.isEmpty()) return null
+    if (t.contains(',')) t = t.replace(".", "").replace(',', '.')
+    return t.toDoubleOrNull()
+}
+
+/** Formatiert einen Wert für ein Eingabefeld (ohne Tausenderpunkte). */
+fun inputValue(v: Double, decimals: Int): String = String.format(DE, "%.${decimals}f", v)
