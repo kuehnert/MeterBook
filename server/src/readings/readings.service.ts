@@ -12,7 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { num } from '../common/util';
+import { num, truncate } from '../common/util';
 import { MetersService } from '../meters/meters.service';
 import { PrismaService } from '../prisma.service';
 import { PlausibilityWarning, checkReading } from '../stats/analytics';
@@ -132,6 +132,8 @@ export class ReadingsService {
     }
     const readAt = new Date(dto.readAt);
     if (readAt.getTime() > Date.now() + 10 * 60_000) throw new BadRequestException('Ablesung liegt in der Zukunft');
+    const decimals = new Map(meter.registers.map((r) => [r.id, r.decimals]));
+    dto = { ...dto, values: dto.values.map((v) => ({ ...v, value: truncate(v.value, decimals.get(v.registerId) ?? 3) })) };
     const warnings = await this.check(userId, meterId, dto);
 
     await this.prisma.$transaction(async (tx) => {

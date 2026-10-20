@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { num, numOr0 } from '../common/util';
+import { num, numOr0, truncate } from '../common/util';
 import { PrismaService } from '../prisma.service';
 import { AdvanceInput, Point, TariffInput, buildSeries } from '../stats/analytics';
 import { AdvancePaymentDto, CreateMeterDto, ExchangeDto, TariffDto, UpdateMeterDto } from './dto';
@@ -77,8 +77,17 @@ export class MetersService {
       for (const [i, r] of registers.entries()) {
         const data = { name: r.name, code: r.code ?? null, decimals: r.decimals ?? 1, sortOrder: i };
         if (r.id) {
-          if (!meter.registers.some((x) => x.id === r.id)) throw new BadRequestException('Unbekanntes Zählwerk');
+          const old = meter.registers.find((x) => x.id === r.id);
+          if (!old) throw new BadRequestException('Unbekanntes Zählwerk');
           await tx.register.update({ where: { id: r.id }, data });
+          if (data.decimals < old.decimals) {
+            const readings = await tx.reading.findMany({ where: { registerId: r.id } });
+            for (const rd of readings) {
+              const v = numOr0(rd.value);
+              const t = truncate(v, data.decimals);
+              if (t !== v) await tx.reading.update({ where: { id: rd.id }, data: { value: t } });
+            }
+          }
         } else {
           await tx.register.create({ data: { ...data, meterId: id } });
         }

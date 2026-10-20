@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Injectable, Logger } from '@nestjs/common';
+import { truncate } from '../common/util';
 import { config } from '../config';
 
 export interface OcrRegisterInput {
@@ -50,11 +51,11 @@ const SCHEMA = {
           register_id: { type: 'string' },
           digits: {
             type: 'string',
-            description: 'Die Ziffern genau so, wie sie auf dem Zählwerk stehen, mit Komma vor den Nachkommastellen. "?" für unlesbare Stellen.',
+            description: 'Alle angezeigten Ziffern inklusive Nachkommastellen, mit Komma davor. Unsichere Ziffern in eckigen Klammern mit deiner besten Schätzung, z. B. "029[7]89,6".',
           },
           value: {
             type: ['number', 'null'],
-            description: 'Zählerstand als Dezimalzahl in der Einheit des Zählers, null wenn nicht lesbar',
+            description: 'Bester Schätzwert des vollständigen Zählerstands inkl. Nachkommastellen als Dezimalzahl. Nur null, wenn das Zählwerk gar nicht im Bild ist.',
           },
           confidence: { type: 'number', description: '0 bis 1' },
         },
@@ -72,10 +73,10 @@ const SCHEMA = {
 const SYSTEM = `Du liest Zählerstände von Fotos von Strom-, Wasser-, Gas- und Wärmezählern ab.
 
 Regeln:
-- Lies jede Ziffer einzeln ab. Rate nicht: unlesbare Stellen werden in "digits" als "?" markiert und senken "confidence".
+- Lies jede Ziffer einzeln ab. Gib immer deinen besten Schätzwert an, auch wenn einzelne Ziffern schwer lesbar sind – der Nutzer korrigiert dann nur die markierten Stellen. Unsichere Ziffern kommen in "digits" in eckige Klammern und senken "confidence".
 - Rollenzählwerke: Steht eine Rolle zwischen zwei Ziffern, gilt die kleinere Ziffer (außer beim Übergang 9→0: dann die 9).
-- Nachkommastellen sind oft rot hinterlegt oder durch ein Komma abgesetzt. Die Anzahl der Nachkommastellen je Zählwerk ist vorgegeben.
-- Digitale Zähler (LCD) zeigen oft wechselnde Werte; verwende nur die Anzeige mit dem OBIS-Code, der zum Zählwerk passt (z. B. 1.8.0 für Bezug). Zeigt das Foto einen anderen Code, setze value auf null und nenne das in "issues".
+- Nachkommastellen sind oft rot hinterlegt, kleiner oder durch ein Komma abgesetzt. Lies sie mit ab und setze das Komma davor – sie dürfen nie als Einerstelle gelesen werden. Ob sie gespeichert werden, entscheidet die Anwendung.
+- Digitale Zähler (LCD) zeigen oft wechselnde Werte; verwende die Anzeige mit dem OBIS-Code, der zum Zählwerk passt (z. B. 1.8.0 für Bezug). Zeigt das Foto einen anderen Code, gib den Wert trotzdem an, setze confidence niedrig und nenne das in "issues".
 - Zähler mit HT/NT haben zwei getrennte Zählwerke; ordne sie anhand der Beschriftung zu.
 - Der letzte bekannte Stand dient nur zur Plausibilität. Ein neuer Stand ist normalerweise gleich oder etwas größer. Weicht deine Lesung stark ab, lies noch einmal genau, aber übernimm nie einfach den alten Wert.
 - Ist das Bild kein Zähler oder ein anderer Zähler (Seriennummer passt nicht), sage das in "issues".
@@ -100,7 +101,7 @@ export class OcrService {
       'Zählwerke:',
       ...meter.registers.map(
         (r) =>
-          `- register_id "${r.id}": ${r.name}${r.code ? ` (${r.code})` : ''}, ${r.decimals} Nachkommastelle(n)` +
+          `- register_id "${r.id}": ${r.name}${r.code ? ` (${r.code})` : ''}` +
           (r.lastValue !== null ? `, letzter bekannter Stand ${r.lastValue}` : ''),
       ),
     ]
@@ -147,7 +148,7 @@ export class OcrService {
         const hit = byId.get(r.id);
         return {
           registerId: r.id,
-          value: hit?.value ?? null,
+          value: hit?.value === null || hit?.value === undefined ? null : truncate(hit.value, r.decimals),
           confidence: Math.min(1, Math.max(0, hit?.confidence ?? 0)),
           digits: hit?.digits ?? '',
         };

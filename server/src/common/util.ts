@@ -13,3 +13,9 @@ export function round(n: number, digits = 2): number {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
 }
+
+/** Schneidet auf die gespeicherten Nachkommastellen ab – Zählerstände werden nie aufgerundet. */
+export function truncate(value: number, decimals: number): number {
+  const f = 10 ** decimals;
+  return Math.floor(value * f + 1e-6) / f;
+}

@@ -115,7 +115,7 @@ export function MeterForm({ initial, submitLabel, onSubmit }: Props) {
             Zählwerke
           </Text>
           <Text size="xs" c="dimmed" mb={6}>
-            Ein Zähler mit HT und NT hat zwei Zählwerke. Nachkommastellen wie auf dem Zählwerk (meist rot abgesetzt).
+            Ein Zähler mit HT und NT hat zwei Zählwerke. „Nachkomma“ = wie viele Nachkommastellen gespeichert werden; 0 heißt nur ganze Einheiten. Es wird immer abgeschnitten, nicht gerundet – die Erkennung liest die roten Stellen trotzdem richtig mit. Verringern kürzt auch vorhandene Ablesungen.
           </Text>
           <Stack gap="xs">
             {v.registers.map((r, i) => (

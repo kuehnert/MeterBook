@@ -238,6 +238,11 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
                 error={w.length > 0 ? undefined : null}
                 classNames={{ input: 'tabular' }}
               />
+              {ocr && ocr.confidence < 0.6 && (
+                <Text size="xs" c="yellow.8">
+                  Unsicher erkannt – bitte die Ziffern {ocr.digits.includes('[') ? 'in eckigen Klammern ' : ''}mit dem Foto vergleichen.
+                </Text>
+              )}
               {w.map((x, i) => (
                 <Text key={i} size="xs" c="orange.7">
                   {x.message}

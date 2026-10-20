@@ -130,6 +130,9 @@ fun ReviewScreen(
                                 ocr?.let { "erkannt „${it.digits}“ · Sicherheit ${(it.confidence * 100).toInt()} %" },
                             )
                             if (parts.isNotEmpty()) Text(parts.joinToString("\n"))
+                            if (ocr != null && ocr.confidence < 0.6) {
+                                Text("Unsicher erkannt – bitte Ziffern mit dem Foto vergleichen", color = MaterialTheme.colorScheme.tertiary)
+                            }
                             warnings.forEach { Text(it.message, color = MaterialTheme.colorScheme.error) }
                         }
                     },
