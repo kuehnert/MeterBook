@@ -37,6 +37,8 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
   const qc = useQueryClient();
   const health = useQuery({ queryKey: ['health'], queryFn: () => get<Health>('/health'), staleTime: Infinity });
   const [readAt, setReadAt] = useState<string>(dayjs().format(FORMAT));
+  /** Hat der Nutzer den Zeitpunkt selbst gewählt? Dann nicht durch das Foto überschreiben. */
+  const [readAtTouched, setReadAtTouched] = useState(false);
   const [values, setValues] = useState<Record<string, number | ''>>({});
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState<{ id: string; preview?: string } | null>(null);
@@ -49,6 +51,7 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
   useEffect(() => {
     if (!opened) return;
     setReadAt(dayjs(edit?.readAt ?? undefined).format(FORMAT));
+    setReadAtTouched(!!edit);
     setValues(Object.fromEntries(meter.registers.map((r) => [r.id, edit?.values[r.id]?.value ?? ''])));
     setNote(edit?.note ?? '');
     setPhoto(edit?.photoId ? { id: edit.photoId } : null);
@@ -102,11 +105,14 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      // Aufnahmezeitpunkt: bei neuen Ablesungen der gewählte Zeitpunkt
-      fd.append('takenAt', dayjs(readAt).toISOString());
+      // Ohne eigene Angabe ermittelt der Server den Zeitpunkt aus EXIF oder Dateiname.
+      if (readAtTouched) fd.append('takenAt', dayjs(readAt).toISOString());
       const res = await post<UploadResult>(`/meters/${meter.id}/photos`, fd);
       setPhoto({ id: res.photoId, preview });
       setUpload(res);
+      if (!readAtTouched && (res.takenAtSource === 'exif' || res.takenAtSource === 'filename')) {
+        setReadAt(dayjs(res.takenAt).format(FORMAT));
+      }
       if (res.ocr) {
         setValues((v) => {
           const next = { ...v };
@@ -204,7 +210,18 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
         <DateTimePicker
           label="Zeitpunkt der Ablesung"
           value={readAt}
-          onChange={(v) => v && setReadAt(dayjs(v).format(FORMAT))}
+          onChange={(v) => {
+            if (!v) return;
+            setReadAt(dayjs(v).format(FORMAT));
+            setReadAtTouched(true);
+          }}
+          description={
+            !readAtTouched && upload?.takenAtSource === 'exif'
+              ? 'Aus den Fotodaten (EXIF) übernommen'
+              : !readAtTouched && upload?.takenAtSource === 'filename'
+                ? 'Aus dem Dateinamen des Fotos übernommen'
+                : undefined
+          }
           valueFormat="DD.MM.YYYY HH:mm"
           maxDate={dayjs().format(FORMAT)}
         />

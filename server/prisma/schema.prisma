@@ -46,6 +46,8 @@ model Meter {
   name              String
   /// ELECTRICITY | WATER | GAS | HEAT | OTHER
   medium            String
+  /// Symbol: ELECTRICITY | HEATING | WATER | GAS | HEAT | OTHER (leer = wie medium)
+  icon              String?
   unit              String
   serialNumber      String?
   location          String?

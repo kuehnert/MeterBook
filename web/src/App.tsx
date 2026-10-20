@@ -81,7 +81,7 @@ function Shell({ user }: { user: User }) {
             Zähler
           </Text>
           {meters.data?.map((m) => (
-            <span key={m.id}>{link(`/meters/${m.id}`, m.name, <MediumIcon medium={m.medium} size={18} />)}</span>
+            <span key={m.id}>{link(`/meters/${m.id}`, m.name, <MediumIcon meter={m} size={18} />)}</span>
           ))}
           {link('/meters/new', 'Zähler hinzufügen', <IconPlus size={18} />, true)}
           <Text size="xs" fw={600} c="dimmed" tt="uppercase" px="sm" pt="md" pb={4}>

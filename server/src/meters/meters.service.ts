@@ -298,6 +298,7 @@ export class MetersService {
       id: m.id,
       name: m.name,
       medium: m.medium,
+      icon: m.icon,
       unit: m.unit,
       serialNumber: m.serialNumber,
       location: m.location,

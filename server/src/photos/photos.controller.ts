@@ -21,7 +21,10 @@ import { PhotosService } from './photos.service';
 export class PhotosController {
   constructor(private readonly photos: PhotosService) {}
 
-  /** multipart/form-data: file, takenAt (ISO, optional), recognize ("false" zum Abschalten) */
+  /**
+   * multipart/form-data: file, takenAt (ISO, optional), recognize ("false" zum Abschalten).
+   * Der Aufnahmezeitpunkt kommt bevorzugt aus EXIF, dann aus dem Dateinamen, dann aus takenAt.
+   */
   @Post('meters/:meterId/photos')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
   upload(
@@ -32,7 +35,7 @@ export class PhotosController {
     @Body('recognize') recognize?: string,
   ) {
     if (!file) throw new BadRequestException('Kein Foto übertragen');
-    return this.photos.upload(u.id, meterId, file.buffer, takenAt, recognize !== 'false');
+    return this.photos.upload(u.id, meterId, file.buffer, { fileName: file.originalname, takenAt, recognize: recognize !== 'false' });
   }
 
   @Get('meters/:meterId/photos')

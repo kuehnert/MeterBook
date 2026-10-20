@@ -6,7 +6,11 @@ import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Thermostat
 import androidx.compose.material.icons.outlined.WaterDrop
 import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+import net.mister_k.meterbook.R
+import net.mister_k.meterbook.data.Meter
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneId
@@ -36,6 +40,13 @@ fun daysAgo(n: Int?): String = when (n) {
     0 -> "heute abgelesen"
     1 -> "gestern abgelesen"
     else -> "vor $n Tagen abgelesen"
+}
+
+/** Symbol eines Zählers: eigenes Symbol, sonst das der Zählerart. */
+@Composable
+fun meterIcon(meter: Meter): ImageVector = when (meter.icon ?: meter.medium) {
+    "HEATING" -> ImageVector.vectorResource(R.drawable.ic_radiator)
+    else -> mediumIcon(meter.icon ?: meter.medium)
 }
 
 fun mediumIcon(medium: String): ImageVector = when (medium) {

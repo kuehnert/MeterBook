@@ -3,10 +3,10 @@ import { IconCamera } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
-import { MediumIcon } from '../components/MediumIcon';
+import { ICON_COLOR, MediumIcon, iconOf } from '../components/MediumIcon';
 import { ReadingModal } from '../components/ReadingModal';
 import { get } from '../lib/api';
-import { MEDIUM_COLOR, MEDIUM_LABEL } from '../lib/format';
+import { MEDIUM_LABEL } from '../lib/format';
 import type { Meter } from '../lib/types';
 import { BillingTab } from './meter/BillingTab';
 import { ChartTab } from './meter/ChartTab';
@@ -34,8 +34,8 @@ export function MeterPage() {
     <Stack>
       <Group justify="space-between">
         <Group gap="sm">
-          <ThemeIcon variant="light" color={MEDIUM_COLOR[m.medium]} size="xl">
-            <MediumIcon medium={m.medium} size={24} />
+          <ThemeIcon variant="light" color={ICON_COLOR[iconOf(m)]} size="xl">
+            <MediumIcon meter={m} size={24} />
           </ThemeIcon>
           <div>
             <Title order={2}>{m.name}</Title>

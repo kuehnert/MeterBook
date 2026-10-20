@@ -1,4 +1,5 @@
 export type Medium = 'ELECTRICITY' | 'WATER' | 'GAS' | 'HEAT' | 'OTHER';
+export type MeterIcon = 'ELECTRICITY' | 'HEATING' | 'WATER' | 'GAS' | 'HEAT' | 'OTHER';
 
 export interface Register {
   id: string;
@@ -12,6 +13,7 @@ export interface Meter {
   id: string;
   name: string;
   medium: Medium;
+  icon: MeterIcon | null;
   unit: string;
   serialNumber: string | null;
   location: string | null;
@@ -121,6 +123,7 @@ export interface OcrResult {
 export interface UploadResult {
   photoId: string;
   takenAt: string;
+  takenAtSource: 'exif' | 'filename' | 'client' | 'now';
   ocr: OcrResult | null;
   ocrError: string | null;
   warnings: RegisterWarnings[];

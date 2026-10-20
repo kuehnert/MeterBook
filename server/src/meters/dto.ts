@@ -16,6 +16,7 @@ import {
 } from 'class-validator';
 
 export const MEDIA = ['ELECTRICITY', 'WATER', 'GAS', 'HEAT', 'OTHER'] as const;
+export const ICONS = ['ELECTRICITY', 'HEATING', 'WATER', 'GAS', 'HEAT', 'OTHER'] as const;
 
 export class RegisterDto {
   @IsOptional()
@@ -40,6 +41,10 @@ export class CreateMeterDto {
   name: string;
   @IsIn(MEDIA, { message: 'Bitte eine Zählerart wählen' })
   medium: (typeof MEDIA)[number];
+  /** Leer = Symbol der Zählerart */
+  @IsOptional()
+  @IsIn(ICONS)
+  icon?: (typeof ICONS)[number];
   @IsString()
   @MinLength(1, { message: 'Bitte eine Einheit angeben' })
   unit: string;
@@ -83,6 +88,10 @@ export class UpdateMeterDto {
   @IsOptional()
   @IsIn(MEDIA)
   medium?: (typeof MEDIA)[number];
+  /** null = Symbol der Zählerart */
+  @IsOptional()
+  @IsIn([...ICONS, null])
+  icon?: (typeof ICONS)[number] | null;
   @IsOptional()
   @IsString()
   unit?: string;

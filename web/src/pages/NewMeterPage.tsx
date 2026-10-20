@@ -16,6 +16,7 @@ const PRESETS: Record<string, { label: string; values: MeterFormValues }> = {
       ...base,
       name: 'Nutzstrom',
       medium: 'ELECTRICITY',
+      icon: null,
       unit: 'kWh',
       ocrHint: 'Digitaler Zähler: nur die Anzeige 1.8.0 verwenden.',
       registers: [{ name: 'Bezug', code: '1.8.0', decimals: 0 }],
@@ -27,6 +28,7 @@ const PRESETS: Record<string, { label: string; values: MeterFormValues }> = {
       ...base,
       name: 'Heizstrom',
       medium: 'ELECTRICITY',
+      icon: 'HEATING',
       unit: 'kWh',
       billingStartMonth: 7,
       ocrHint: 'Zwei Rollenzählwerke: oben HT, unten NT. Die letzte, rot hinterlegte Stelle ist die Nachkommastelle.',
@@ -42,6 +44,7 @@ const PRESETS: Record<string, { label: string; values: MeterFormValues }> = {
       ...base,
       name: 'Wasser',
       medium: 'WATER',
+      icon: null,
       unit: 'm³',
       ocrHint: 'Schwarze Ziffern sind ganze m³, rote Ziffern Nachkommastellen.',
       registers: [{ name: 'Wasser', code: '', decimals: 3 }],
@@ -49,7 +52,7 @@ const PRESETS: Record<string, { label: string; values: MeterFormValues }> = {
   },
   custom: {
     label: 'Eigener',
-    values: { ...base, name: '', medium: 'OTHER', unit: '', registers: [{ name: 'Stand', code: '', decimals: 1 }] },
+    values: { ...base, name: '', medium: 'OTHER', icon: null, unit: '', registers: [{ name: 'Stand', code: '', decimals: 1 }] },
   },
 };
 

@@ -8,10 +8,13 @@ import { MetersService } from '../meters/meters.service';
 import { PrismaService } from '../prisma.service';
 import { ReadingsService, RegisterWarnings } from '../readings/readings.service';
 import { OcrResult, OcrService } from './ocr.service';
+import { TakenAtSource, resolveTakenAt } from './taken-at';
 
 export interface UploadResult {
   photoId: string;
   takenAt: Date;
+  /** Woher der Zeitpunkt stammt: EXIF, Dateiname, Angabe der App oder Upload-Zeit */
+  takenAtSource: TakenAtSource;
   ocr: OcrResult | null;
   ocrError: string | null;
   warnings: RegisterWarnings[];
@@ -40,13 +43,20 @@ export class PhotosService {
    * Speichert ein Foto (gedreht nach EXIF, verkleinert) und lässt den Stand erkennen.
    * Die Ablesung selbst wird erst gespeichert, wenn der Nutzer die Werte bestätigt.
    */
-  async upload(userId: string, meterId: string, buffer: Buffer, takenAtRaw?: string, recognize = true): Promise<UploadResult> {
+  async upload(
+    userId: string,
+    meterId: string,
+    buffer: Buffer,
+    opts: { fileName?: string; takenAt?: string; recognize?: boolean } = {},
+  ): Promise<UploadResult> {
     const meter = await this.meters.find(userId, meterId);
-    const takenAt = takenAtRaw ? new Date(takenAtRaw) : new Date();
-    if (Number.isNaN(takenAt.getTime())) throw new BadRequestException('Ungültiges Aufnahmedatum');
+    const recognize = opts.recognize ?? true;
 
     let full: { data: Buffer; info: OutputInfo };
+    let exif: Buffer | undefined;
     try {
+      // EXIF vor dem Umrechnen lesen – beim Drehen und Verkleinern gehen die Metadaten verloren.
+      exif = (await sharp(buffer).metadata()).exif;
       full = await sharp(buffer)
         .rotate()
         .resize({ width: 2400, height: 2400, fit: 'inside', withoutEnlargement: true })
@@ -55,6 +65,7 @@ export class PhotosService {
     } catch {
       throw new BadRequestException('Die Datei ist kein lesbares Bild');
     }
+    const { takenAt, source: takenAtSource } = resolveTakenAt({ exif, fileName: opts.fileName, client: opts.takenAt });
     const thumb = await sharp(full.data).resize({ width: 480, height: 480, fit: 'inside' }).jpeg({ quality: 75 }).toBuffer();
 
     const photo = await this.prisma.photo.create({
@@ -107,7 +118,7 @@ export class PhotosService {
         });
       }
     }
-    return { photoId: photo.id, takenAt, ocr, ocrError, warnings };
+    return { photoId: photo.id, takenAt, takenAtSource, ocr, ocrError, warnings };
   }
 
   async read(userId: string, photoId: string, variant: 'full' | 'thumb'): Promise<Buffer> {

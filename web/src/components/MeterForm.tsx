@@ -2,11 +2,14 @@ import { ActionIcon, Button, Group, NumberInput, Select, SimpleGrid, Stack, Text
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useState } from 'react';
 import { MEDIUM_LABEL, MONTHS } from '../lib/format';
-import type { Medium, Meter } from '../lib/types';
+import type { Medium, Meter, MeterIcon } from '../lib/types';
+import { ICON_LABEL, MeterIconView } from './MediumIcon';
 
 export interface MeterFormValues {
   name: string;
   medium: Medium;
+  /** null = Symbol der Zählerart */
+  icon: MeterIcon | null;
   unit: string;
   serialNumber: string;
   location: string;
@@ -21,6 +24,7 @@ export function toFormValues(m: Meter): MeterFormValues {
   return {
     name: m.name,
     medium: m.medium,
+    icon: m.icon,
     unit: m.unit,
     serialNumber: m.serialNumber ?? '',
     location: m.location ?? '',
@@ -87,6 +91,18 @@ export function MeterForm({ initial, submitLabel, onSubmit }: Props) {
             />
             <TextInput label="Einheit" required value={v.unit} onChange={(e) => set('unit', e.currentTarget.value)} />
           </Group>
+          <Select
+            label="Symbol"
+            description="Zur Unterscheidung in Übersicht und App"
+            data={[
+              { value: '', label: `Automatisch (${MEDIUM_LABEL[v.medium]})` },
+              ...Object.entries(ICON_LABEL).map(([value, label]) => ({ value, label })),
+            ]}
+            value={v.icon ?? ''}
+            onChange={(x) => set('icon', x ? (x as MeterIcon) : null)}
+            allowDeselect={false}
+            leftSection={<MeterIconView icon={v.icon ?? (v.medium as MeterIcon)} size={16} />}
+          />
           <TextInput label="Zählernummer" value={v.serialNumber} onChange={(e) => set('serialNumber', e.currentTarget.value)} description="Wird beim Foto mit der Aufschrift verglichen" />
           <TextInput label="Ort" value={v.location} onChange={(e) => set('location', e.currentTarget.value)} placeholder="z. B. Keller, Bad" />
         </SimpleGrid>

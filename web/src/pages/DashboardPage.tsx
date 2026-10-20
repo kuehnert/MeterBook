@@ -3,10 +3,10 @@ import { IconCamera, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { MediumIcon } from '../components/MediumIcon';
+import { ICON_COLOR, MediumIcon, iconOf } from '../components/MediumIcon';
 import { ReadingModal } from '../components/ReadingModal';
 import { get } from '../lib/api';
-import { MEDIUM_COLOR, daysAgo, eur, lastDay, num } from '../lib/format';
+import { daysAgo, eur, lastDay, num } from '../lib/format';
 import type { Meter, Overview } from '../lib/types';
 
 export function DashboardPage() {
@@ -69,8 +69,8 @@ function MeterCard({ o, onCapture }: { o: Overview; onCapture: () => void }) {
     <Card withBorder padding="lg">
       <Group justify="space-between" mb="sm" wrap="nowrap">
         <Group gap="sm" wrap="nowrap">
-          <ThemeIcon variant="light" color={MEDIUM_COLOR[m.medium]} size="lg">
-            <MediumIcon medium={m.medium} />
+          <ThemeIcon variant="light" color={ICON_COLOR[iconOf(m)]} size="lg">
+            <MediumIcon meter={m} />
           </ThemeIcon>
           <div>
             <Text fw={600} component={Link} to={`/meters/${m.id}`}>
