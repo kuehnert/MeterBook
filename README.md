@@ -29,9 +29,28 @@ android/  Android-App (Kotlin, Jetpack Compose)
 
 Daten liegen in `./data` (SQLite-Datei `meterbook.db` und Ordner `photos/`). **Sicherung = diesen Ordner kopieren.**
 
-### Fertiges Image statt selbst bauen
+### Versionen und Updates
 
-Der Workflow `.github/workflows/docker.yml` baut bei jedem Push auf `main` ein Image für amd64 und arm64 nach `ghcr.io/kuehnert/meterbook`. In `docker-compose.yml` dann `build: .` durch `image: ghcr.io/kuehnert/meterbook:latest` ersetzen. Da das Repo privat ist, auf dem Server einmal `docker login ghcr.io` mit einem GitHub-Token (Recht `read:packages`).
+Images liegen in der GitHub Container Registry unter `ghcr.io/kuehnert/meterbook`:
+
+| Tag | Bedeutung |
+|---|---|
+| `0.1.1` | genau dieses Release – **für den Betrieb empfohlen** |
+| `0.1` | neuestes Release der Reihe 0.1.x |
+| `latest` | neuestes Release |
+| `edge` | aktueller Stand von `main`, ungetestet |
+
+In `docker-compose.yml` die gewünschte Version eintragen, z. B. `image: ghcr.io/kuehnert/meterbook:0.1.1`. Update: Version erhöhen, dann `docker compose pull && docker compose up -d`. Die Version des laufenden Servers steht im Web unter **Einstellungen**.
+
+Da das Repo privat ist, auf dem Server einmal `docker login ghcr.io` mit einem GitHub-Token (Recht `read:packages`).
+
+Neues Release veröffentlichen (setzt die Version in Server, Web und Android, committet, taggt und pusht):
+
+```bash
+node scripts/release.mjs 0.1.2 --push
+```
+
+Selbst bauen statt Image: in `docker-compose.yml` `build: .` statt `image:` eintragen und `docker compose up -d --build`.
 
 ## Erste Schritte
 
