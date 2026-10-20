@@ -1,0 +1,19 @@
+# MeterBook – Compose-Stack (z. B. in Dockhand importieren)
+#
+# 1. .env.example nach .env kopieren und ausfüllen
+# 2. docker compose up -d --build
+# 3. Cloudflare Tunnel auf http://<host>:3000 zeigen lassen
+
+services:
+  meterbook:
+    build: .
+    # Alternativ das fertige Image aus der GitHub Container Registry verwenden
+    # (siehe .github/workflows/docker.yml) und die Zeile "build" entfernen:
+    # image: ghcr.io/kuehnert/meterbook:latest
+    container_name: meterbook
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data

@@ -1,0 +1,11 @@
+body {
+  background: var(--mantine-color-body);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-link-active {
+  font-weight: 600;
+}
