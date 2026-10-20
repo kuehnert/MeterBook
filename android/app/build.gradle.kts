@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "net.mister_k.meterbook"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "net.mister_k.meterbook"
@@ -32,10 +32,6 @@ android {
     buildFeatures {
         compose = true
     }
-}
-
-kotlin {
-    jvmToolchain(17)
 }
 
 dependencies {
