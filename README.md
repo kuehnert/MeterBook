@@ -21,7 +21,7 @@ android/  Android-App (Kotlin, Jetpack Compose)
    - `ANTHROPIC_API_KEY` – für die automatische Erkennung (leer = aus)
 3. Starten:
    ```bash
-   docker compose up -d --build
+   docker compose up -d
    ```
 4. Cloudflare Tunnel auf `http://<host>:3000` zeigen lassen. Die Web-Oberfläche liegt unter `/`, die API unter `/api`.
 

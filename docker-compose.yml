@@ -1,6 +1,8 @@
+# Feste Version für den Betrieb (Tags siehe README).
+# Update: Version erhöhen, dann "docker compose pull && docker compose up -d".
 services:
   meterbook:
-    image: ghcr.io/kuehnert/meterbook:latest
+    image: ghcr.io/kuehnert/meterbook:0.1.1
     container_name: meterbook
     restart: unless-stopped
     ports:
@@ -8,9 +10,9 @@ services:
     volumes:
       - ./data:/data
     environment:
-      - JWT_SECRET: ${JWT_SECRET}
-      - ADMIN_EMAIL: ${ADMIN_EMAIL}
-      - ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      - ADMIN_NAME: ${ADMIN_NAME}
-      - ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      - OCR_MODEL: ${OCR_MODEL}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OCR_MODEL: ${OCR_MODEL:-claude-opus-5-5}
