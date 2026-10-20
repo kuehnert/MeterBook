@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import androidx.compose.material3.Switch
+import net.mister_k.meterbook.BuildConfig
 import net.mister_k.meterbook.MeterBookApp
 import net.mister_k.meterbook.data.Health
 
@@ -42,6 +44,7 @@ import net.mister_k.meterbook.data.Health
 fun SettingsScreen(app: MeterBookApp, onBack: () -> Unit) {
     val user by app.session.user.collectAsStateWithLifecycle()
     var reminder by remember { mutableStateOf(app.session.reminderDays) }
+    var gallery by remember { mutableStateOf(app.session.saveToGallery) }
     var health by remember { mutableStateOf<Health?>(null) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { health = runCatching { app.api.health() }.getOrNull() }
@@ -59,8 +62,27 @@ fun SettingsScreen(app: MeterBookApp, onBack: () -> Unit) {
             ListItem(
                 headlineContent = { Text("Server") },
                 supportingContent = {
-                    Text(app.session.serverUrl + (health?.let { " · Version ${it.version}" + if (it.ocr) " · Erkennung aktiv" else " · Erkennung aus" } ?: " · nicht erreichbar"))
+                    Text(app.session.serverUrl + (health?.let { if (it.ocr) " · Erkennung aktiv" else " · Erkennung aus" } ?: " · nicht erreichbar"))
                 },
+            )
+            ListItem(
+                headlineContent = { Text("Version") },
+                supportingContent = {
+                    Column {
+                        Text("App ${BuildConfig.VERSION_NAME} · Server ${health?.version ?: "–"}")
+                        if (health != null && health!!.version != BuildConfig.VERSION_NAME) {
+                            Text(
+                                "App und Server haben unterschiedliche Versionen – am besten beide aktualisieren.",
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                },
+            )
+            ListItem(
+                headlineContent = { Text("Fotos in der Galerie speichern") },
+                supportingContent = { Text("Kopie unter Bilder/MeterBook") },
+                trailingContent = { Switch(checked = gallery, onCheckedChange = { gallery = it; app.session.saveToGallery = it }) },
             )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             Text("Erinnerung ans Ablesen", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp))

@@ -110,7 +110,8 @@ model Reading {
 model Photo {
   id        String    @id @default(cuid())
   userId    String
-  meterId   String
+  /// null = noch keinem Zähler zugeordnet (automatische Zuordnung fehlgeschlagen)
+  meterId   String?
   takenAt   DateTime
   width     Int?
   height    Int?
@@ -120,7 +121,7 @@ model Photo {
   ocrResult String?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meter     Meter     @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  meter     Meter?    @relation(fields: [meterId], references: [id], onDelete: Cascade)
   readings  Reading[]
 
   @@index([meterId])

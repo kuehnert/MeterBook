@@ -222,6 +222,7 @@ export class StatsService {
         const nextBillingStart = nextBucket(bucketStart(now, 'billing', this.billing(data)), 'billing');
         return {
           meter: m,
+          recent: await this.meters.recentReadings(data.meter, 2),
           perDayLast30: last30,
           perDayLastYear: yearRate,
           currentPeriod: current,

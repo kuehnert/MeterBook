@@ -58,11 +58,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.mister_k.meterbook.MeterBookApp
 import java.io.File
 
-/** Kamera mit Ausrichtungsrahmen. Ein Foto pro Zähler – bei HT/NT beide Zählwerke ins Bild. */
+/**
+ * Kamera mit Ausrichtungsrahmen. Ein Foto pro Zähler – bei HT/NT beide Zählwerke ins Bild.
+ * meterId = null: Der Server erkennt, welcher Zähler fotografiert wurde.
+ */
 @Composable
 fun CaptureScreen(
     app: MeterBookApp,
-    meterId: String,
+    meterId: String?,
     viewModel: CaptureViewModel,
     onCaptured: () -> Unit,
     onManual: () -> Unit,
@@ -70,7 +73,7 @@ fun CaptureScreen(
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
-    val meter = app.repo.meter(meterId)
+    val meter = meterId?.let { app.repo.meter(it) }
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
@@ -118,10 +121,13 @@ fun CaptureScreen(
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Zurück", tint = Color.White) }
             Column(Modifier.weight(1f)) {
-                Text(meter?.name ?: "Zähler", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                Text(meter?.name ?: "Zähler fotografieren", color = Color.White, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    if ((meter?.registers?.size ?: 1) > 1) "Alle Zählwerke (${meter?.registers?.joinToString(" + ") { it.name }}) in den Rahmen"
-                    else "Zählwerk in den Rahmen",
+                    when {
+                        meter == null -> "Der Zähler wird automatisch erkannt – Zählernummer möglichst mit ins Bild"
+                        meter.registers.size > 1 -> "Alle Zählwerke (${meter.registers.joinToString(" + ") { it.name }}) in den Rahmen"
+                        else -> "Zählwerk in den Rahmen"
+                    },
                     color = Color.White.copy(alpha = 0.8f),
                     style = MaterialTheme.typography.bodySmall,
                 )

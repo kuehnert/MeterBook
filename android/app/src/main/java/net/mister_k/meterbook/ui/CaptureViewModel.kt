@@ -19,13 +19,18 @@ import net.mister_k.meterbook.data.OcrResult
 import net.mister_k.meterbook.data.ReadingGroupIn
 import net.mister_k.meterbook.data.ReadingValueIn
 import net.mister_k.meterbook.data.RegisterWarnings
+import net.mister_k.meterbook.data.UploadResult
 import net.mister_k.meterbook.data.prepareForUpload
+import net.mister_k.meterbook.data.saveToGallery
 import net.mister_k.meterbook.work.SyncWorker
 import java.io.File
 import java.time.Instant
 
 data class CaptureState(
-    val meterId: String = "",
+    /** null = Zähler noch unbekannt (automatische Zuordnung läuft oder ist fehlgeschlagen) */
+    val meterId: String? = null,
+    /** Zähler wurde automatisch erkannt */
+    val autoAssigned: Boolean = false,
     val photo: File? = null,
     val takenAt: Instant = Instant.now(),
     val uploading: Boolean = false,
@@ -53,26 +58,72 @@ class CaptureViewModel(application: Application) : AndroidViewModel(application)
     val state: StateFlow<CaptureState> = _state.asStateFlow()
     private var checkJob: Job? = null
 
-    fun start(meterId: String, rawPhoto: File?) {
+    /** meterId = null: Zähler automatisch erkennen lassen. */
+    fun start(meterId: String?, rawPhoto: File?) {
         _state.value = CaptureState(meterId = meterId, takenAt = Instant.now())
         if (rawPhoto == null) return
         viewModelScope.launch {
             val prepared = withContext(Dispatchers.IO) {
+                if (app.session.saveToGallery) {
+                    runCatching { saveToGallery(app, rawPhoto, meterId?.let { app.repo.meter(it)?.name }) }
+                }
                 prepareForUpload(rawPhoto, File(app.cacheDir, "upload_${System.currentTimeMillis()}.jpg")).also {
                     if (it != rawPhoto) rawPhoto.delete()
                 }
             }
             _state.update { it.copy(photo = prepared, uploading = true) }
             try {
-                val res = app.api.uploadPhoto(meterId, prepared, _state.value.takenAt.toString(), recognize = true)
-                val meter = app.repo.meter(meterId)
-                val inputs = res.ocr?.registers?.mapNotNull { r ->
-                    val decimals = meter?.registers?.firstOrNull { it.id == r.registerId }?.decimals ?: 1
-                    r.value?.let { r.registerId to inputValue(it, decimals) }
-                }?.toMap().orEmpty()
-                _state.update {
-                    it.copy(uploading = false, photoId = res.photoId, ocr = res.ocr, ocrError = res.ocrError, warnings = res.warnings, inputs = it.inputs + inputs)
+                val takenAt = _state.value.takenAt.toString()
+                val res = if (meterId != null) {
+                    app.api.uploadPhoto(meterId, prepared, takenAt, recognize = true)
+                } else {
+                    app.api.uploadPhotoAuto(prepared, takenAt)
                 }
+                apply(res, auto = meterId == null)
+            } catch (e: OfflineException) {
+                _state.update { it.copy(uploading = false, offline = true) }
+            } catch (e: ApiException) {
+                _state.update { it.copy(uploading = false, ocrError = e.message) }
+            }
+        }
+    }
+
+    private fun apply(res: UploadResult, auto: Boolean) {
+        val meterId = res.meterId ?: _state.value.meterId
+        val meter = meterId?.let { app.repo.meter(it) }
+        val inputs = res.ocr?.registers?.mapNotNull { r ->
+            val decimals = meter?.registers?.firstOrNull { it.id == r.registerId }?.decimals ?: 1
+            r.value?.let { r.registerId to inputValue(it, decimals) }
+        }?.toMap().orEmpty()
+        _state.update {
+            it.copy(
+                meterId = meterId,
+                autoAssigned = auto && res.meterId != null,
+                uploading = false,
+                photoId = res.photoId,
+                ocr = res.ocr,
+                ocrError = res.ocrError,
+                warnings = res.warnings,
+                inputs = inputs,
+            )
+        }
+    }
+
+    /** Anderen Zähler wählen; ein schon hochgeladenes Foto wird für diesen Zähler neu gelesen. */
+    fun selectMeter(meterId: String) {
+        val s = _state.value
+        if (s.meterId == meterId && s.ocr != null) return
+        _state.update { it.copy(meterId = meterId, autoAssigned = false, inputs = emptyMap(), warnings = emptyList(), ocr = null, error = null) }
+        val photoId = s.photoId
+        val photo = s.photo
+        if (s.offline || (photoId == null && photo == null)) return
+        _state.update { it.copy(uploading = true) }
+        viewModelScope.launch {
+            try {
+                // Schon hochgeladen → neu zuordnen; sonst jetzt für diesen Zähler hochladen.
+                val res = if (photoId != null) app.api.assignPhoto(photoId, meterId)
+                else app.api.uploadPhoto(meterId, photo!!, s.takenAt.toString(), recognize = true)
+                apply(res, auto = false)
             } catch (e: OfflineException) {
                 _state.update { it.copy(uploading = false, offline = true) }
             } catch (e: ApiException) {
@@ -99,10 +150,11 @@ class CaptureViewModel(application: Application) : AndroidViewModel(application)
         checkJob = viewModelScope.launch {
             delay(500)
             val s = _state.value
+            val meterId = s.meterId ?: return@launch
             val vals = values(s)
             if (vals.isEmpty() || s.offline) return@launch
             try {
-                val w = app.api.check(s.meterId, ReadingGroupIn(s.takenAt.toString(), values = vals))
+                val w = app.api.check(meterId, ReadingGroupIn(s.takenAt.toString(), values = vals))
                 _state.update { it.copy(warnings = w) }
             } catch (_: Exception) {
             }
@@ -111,13 +163,18 @@ class CaptureViewModel(application: Application) : AndroidViewModel(application)
 
     suspend fun save(): SaveOutcome? {
         val s = _state.value
-        val meter = app.repo.meter(s.meterId)
+        val meterId = s.meterId
+        if (meterId == null) {
+            _state.update { it.copy(error = "Bitte zuerst den Zähler wählen.") }
+            return null
+        }
+        val meter = app.repo.meter(meterId)
         val vals = values(s)
         if (vals.isEmpty()) {
             _state.update { it.copy(error = "Bitte den Zählerstand eingeben.") }
             return null
         }
-        if (meter != null && s.inputs.any { (_, t) -> t.isNotBlank() && parseNumber(t) == null }) {
+        if (s.inputs.any { (_, t) -> t.isNotBlank() && parseNumber(t) == null }) {
             _state.update { it.copy(error = "Bitte nur Zahlen eingeben, z. B. 29789,6") }
             return null
         }
@@ -125,12 +182,12 @@ class CaptureViewModel(application: Application) : AndroidViewModel(application)
         val group = ReadingGroupIn(s.takenAt.toString(), s.photoId, if (s.photoId != null) "PHOTO" else "MANUAL", s.note.ifBlank { null }, vals)
         return try {
             if (s.offline) throw OfflineException(Exception("offline"))
-            app.api.saveReading(s.meterId, group)
+            app.api.saveReading(meterId, group)
             cleanup()
             SaveOutcome.Saved
         } catch (e: OfflineException) {
             // Ohne Netz: Foto und Werte merken, später senden.
-            app.queue.add(s.meterId, meter?.name ?: "Zähler", s.takenAt.toString(), vals, s.note.ifBlank { null }, if (s.photoId == null) s.photo else null)
+            app.queue.add(meterId, meter?.name ?: "Zähler", s.takenAt.toString(), vals, s.note.ifBlank { null }, if (s.photoId == null) s.photo else null)
             SyncWorker.enqueue(app)
             cleanup()
             SaveOutcome.Queued

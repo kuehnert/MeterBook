@@ -281,6 +281,25 @@ export class MetersService {
     };
   }
 
+  /** Die letzten n Ablesetermine eines Zählers, neueste zuerst. */
+  async recentReadings(meter: MeterWithRegisters, n = 2) {
+    const rows = await this.prisma.reading.findMany({
+      where: { registerId: { in: meter.registers.map((r) => r.id) } },
+      orderBy: { readAt: 'desc' },
+      take: n * meter.registers.length * 2,
+    });
+    const groups = new Map<number, { readAt: Date; values: Record<string, number> }>();
+    for (const r of rows) {
+      const key = r.readAt.getTime();
+      if (!groups.has(key)) {
+        if (groups.size >= n) break;
+        groups.set(key, { readAt: r.readAt, values: {} });
+      }
+      groups.get(key)!.values[r.registerId] = numOr0(r.value);
+    }
+    return [...groups.values()];
+  }
+
   /** Summe der Wertkorrekturen durch Gerätewechsel bis zum Zeitpunkt t (inklusive). */
   async exchangeOffset(registerId: string, t: Date): Promise<number> {
     const list = await this.prisma.meterExchange.findMany({ where: { registerId, exchangedAt: { lte: t } } });

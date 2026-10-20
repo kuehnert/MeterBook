@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
                             HomeScreen(
                                 app,
                                 onCapture = { nav.navigate("capture/$it") },
+                                onCaptureAuto = { nav.navigate("capture/auto") },
                                 onOpenMeter = { nav.navigate("meter/$it") },
                                 onSettings = { nav.navigate("settings") },
                             )
@@ -62,20 +63,19 @@ class MainActivity : ComponentActivity() {
                             val id = entry.arguments?.getString("id")!!
                             CaptureScreen(
                                 app,
-                                meterId = id,
+                                meterId = id.takeIf { it != "auto" },
                                 viewModel = capture,
-                                onCaptured = { nav.navigate("review/$id") { popUpTo("capture/$id") { inclusive = true } } },
-                                onManual = { nav.navigate("review/$id") { popUpTo("capture/$id") { inclusive = true } } },
+                                onCaptured = { nav.navigate("review") { popUpTo("capture/{id}") { inclusive = true } } },
+                                onManual = { nav.navigate("review") { popUpTo("capture/{id}") { inclusive = true } } },
                                 onBack = { nav.popBackStack() },
                             )
                         }
-                        composable("review/{id}") { entry ->
+                        composable("review") {
                             ReviewScreen(
                                 app,
-                                meterId = entry.arguments?.getString("id")!!,
                                 viewModel = capture,
                                 onDone = { nav.popBackStack("home", inclusive = false) },
-                                onRetake = { id -> nav.navigate("capture/$id") { popUpTo("review/$id") { inclusive = true } } },
+                                onRetake = { id -> nav.navigate("capture/${id ?: "auto"}") { popUpTo("review") { inclusive = true } } },
                                 onBack = { nav.popBackStack() },
                             )
                         }

@@ -38,6 +38,26 @@ export class PhotosController {
     return this.photos.upload(u.id, meterId, file.buffer, { fileName: file.originalname, takenAt, recognize: recognize !== 'false' });
   }
 
+  /** Wie oben, aber ohne Zähler: die Erkennung bestimmt, welcher Zähler auf dem Foto ist. */
+  @Post('photos')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  uploadAuto(
+    @CurrentUser() u: AuthUser,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body('takenAt') takenAt?: string,
+  ) {
+    if (!file) throw new BadRequestException('Kein Foto übertragen');
+    return this.photos.upload(u.id, null, file.buffer, { fileName: file.originalname, takenAt });
+  }
+
+  /** Foto einem anderen Zähler zuordnen; die Erkennung läuft für diesen Zähler neu. */
+  @Post('photos/:id/assign')
+  @HttpCode(200)
+  assign(@CurrentUser() u: AuthUser, @Param('id') id: string, @Body('meterId') meterId: string) {
+    if (!meterId) throw new BadRequestException('Zähler fehlt');
+    return this.photos.assign(u.id, id, meterId);
+  }
+
   @Get('meters/:meterId/photos')
   list(@CurrentUser() u: AuthUser, @Param('meterId') meterId: string) {
     return this.photos.list(u.id, meterId);

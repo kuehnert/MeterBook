@@ -8,27 +8,25 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.AddAPhoto
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -53,7 +52,13 @@ import net.mister_k.meterbook.work.SyncWorker
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(app: MeterBookApp, onCapture: (String) -> Unit, onOpenMeter: (String) -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(
+    app: MeterBookApp,
+    onCapture: (String) -> Unit,
+    onCaptureAuto: () -> Unit,
+    onOpenMeter: (String) -> Unit,
+    onSettings: () -> Unit,
+) {
     var items by remember { mutableStateOf(app.repo.cachedOverview() ?: emptyList()) }
     var offline by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
@@ -86,22 +91,32 @@ fun HomeScreen(app: MeterBookApp, onCapture: (String) -> Unit, onOpenMeter: (Str
                 actions = { IconButton(onClick = onSettings) { Icon(Icons.Outlined.Settings, "Einstellungen") } },
             )
         },
+        floatingActionButton = {
+            // Ein Knopf für alles: Foto machen, der Zähler wird automatisch erkannt.
+            if (items.isNotEmpty()) {
+                FloatingActionButton(onClick = onCaptureAuto) {
+                    Icon(Icons.Outlined.AddAPhoto, "Zähler fotografieren")
+                }
+            }
+        },
     ) { pad ->
         PullToRefreshBox(isRefreshing = loading, onRefresh = ::load, modifier = Modifier.fillMaxSize().padding(pad)) {
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 88.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
                 if (offline) {
-                    item {
-                        Banner(Icons.Outlined.CloudOff, "Offline – zuletzt geladene Daten. Ablesungen werden gespeichert und später gesendet.")
-                    }
+                    item { Banner(Icons.Outlined.CloudOff, "Offline – zuletzt geladene Daten. Ablesungen werden später gesendet.") }
                 }
                 if (pending.isNotEmpty()) {
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.CloudUpload, null)
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text("${pending.size} Ablesung(en) warten auf Übertragung")
+                                    Text("${pending.size} Ablesung(en) warten auf Übertragung", style = MaterialTheme.typography.bodyMedium)
                                     pending.firstOrNull { it.lastError != null }?.let {
                                         Text("${it.meterName}: ${it.lastError}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                                     }
@@ -140,62 +155,70 @@ private fun Banner(icon: androidx.compose.ui.graphics.vector.ImageVector, text: 
     }
 }
 
+/** Kompakte Karte: Kopfzeile mit Foto-Knopf, darunter die letzten zwei Ablesungen als Tabelle. */
 @Composable
 private fun MeterCard(o: Overview, onCapture: () -> Unit, onOpen: () -> Unit) {
     val m = o.meter
     val p = o.currentPeriod
     val stale = (o.daysSinceLastReading ?: Int.MAX_VALUE) > 35
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Card(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(meterIcon(m), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
-                Spacer(Modifier.width(12.dp))
+                Icon(meterIcon(m), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(m.name, style = MaterialTheme.typography.titleMedium)
                     Text(
                         daysAgo(o.daysSinceLastReading),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (stale) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (stale) MaterialTheme.colorScheme.error else muted,
                     )
                 }
+                FilledTonalIconButton(onClick = onCapture) {
+                    Icon(Icons.Outlined.AddAPhoto, "${m.name} ablesen")
+                }
             }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                m.registers.forEach { r ->
-                    Column {
-                        Text(if (m.registers.size > 1) r.name else "Stand", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${num(r.lastReading?.value, r.decimals)} ${m.unit}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+
+            // Tabelle: Datum | Zählwerke
+            Column(Modifier.padding(top = 8.dp, end = 6.dp)) {
+                Row {
+                    Cell("Datum", Modifier.weight(1f), header = true, start = true)
+                    m.registers.forEach { r -> Cell(if (m.registers.size > 1) r.name else "Stand (${m.unit})", Modifier.weight(1.2f), header = true) }
+                }
+                HorizontalDivider(Modifier.padding(vertical = 2.dp))
+                if (o.recent.isEmpty()) {
+                    Text("Noch keine Ablesung", style = MaterialTheme.typography.bodySmall, color = muted)
+                }
+                o.recent.forEach { g ->
+                    Row {
+                        Cell(date(g.readAt), Modifier.weight(1f), start = true)
+                        m.registers.forEach { r -> Cell(num(g.values[r.id], r.decimals), Modifier.weight(1.2f), bold = g === o.recent.first()) }
                     }
                 }
             }
-            if (p != null) {
-                HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                Text("Periode ${p.label}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Line("Bisher", "${num(p.total, 0)} ${m.unit}" + (p.cost?.let { " · ${eur(it.total)}" } ?: ""))
-                p.forecastTotal?.let { Line("Hochrechnung", "${num(it, 0)} ${m.unit}" + (p.forecastCost?.let { c -> " · ${eur(c)}" } ?: "")) }
-                p.balance?.let {
-                    Row(Modifier.padding(top = 4.dp)) {
-                        AssistChip(onClick = {}, label = { Text(if (it > 0) "Nachzahlung ca. ${eur(it)}" else "Guthaben ca. ${eur(-it)}") })
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onCapture, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.CameraAlt, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Ablesen")
-                }
-                OutlinedButton(onClick = onOpen, modifier = Modifier.weight(1f)) { Text("Verlauf") }
+
+            if (p != null && p.total != null) {
+                Text(
+                    "Periode ${p.label}: ${num(p.total, 0)} ${m.unit}" + (p.cost?.let { " · ${eur(it.total)}" } ?: ""),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun Line(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.bodyMedium)
-    }
+private fun Cell(text: String, modifier: Modifier, header: Boolean = false, start: Boolean = false, bold: Boolean = false) {
+    Text(
+        text,
+        modifier = modifier.padding(vertical = 1.dp),
+        style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
+        color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        fontWeight = if (bold) FontWeight.SemiBold else null,
+        textAlign = if (start) TextAlign.Start else TextAlign.End,
+        maxLines = 1,
+    )
 }
