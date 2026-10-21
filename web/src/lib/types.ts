@@ -112,9 +112,15 @@ export interface Exchange {
   note: string | null;
 }
 
+/** Lage im Bild als [links, oben, Breite, Höhe], Anteile 0–1 */
+export type Box = [number, number, number, number];
+
 export interface OcrResult {
   model: string;
-  registers: Array<{ registerId: string; value: number | null; confidence: number; digits: string }>;
+  /** Erkannter Zähler (bei automatischer Zuordnung) */
+  meterId: string | null;
+  meterConfidence: number;
+  registers: Array<{ registerId: string; value: number | null; confidence: number; digits: string; box: Box | null }>;
   serialNumberSeen: string | null;
   serialNumberMatches: boolean | null;
   issues: string[];
@@ -122,6 +128,8 @@ export interface OcrResult {
 
 export interface UploadResult {
   photoId: string;
+  /** Zugeordneter Zähler; null, wenn die automatische Erkennung keinen gefunden hat */
+  meterId: string | null;
   takenAt: string;
   takenAtSource: 'exif' | 'filename' | 'client' | 'now';
   ocr: OcrResult | null;

@@ -1,4 +1,4 @@
-import { Badge, Button, Card, Center, Divider, Group, Loader, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import { ActionIcon, Affix, Badge, Button, Card, Center, Divider, Group, Loader, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { IconCamera, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -50,6 +50,15 @@ export function DashboardPage() {
       </SimpleGrid>
 
       {capture && <ReadingModal meter={capture} opened onClose={() => setCapture(null)} />}
+
+      {/* Auf dem Handy: ein großer Knopf zum Fotografieren, der Zähler wird automatisch erkannt */}
+      {items.length > 0 && (
+        <Affix position={{ bottom: 24, right: 20 }} hiddenFrom="sm">
+          <ActionIcon component={Link} to="/ablesen" size={64} radius="xl" variant="filled" aria-label="Zähler fotografieren" style={{ boxShadow: 'var(--mantine-shadow-md)' }}>
+            <IconCamera size={30} />
+          </ActionIcon>
+        </Affix>
+      )}
     </Stack>
   );
 }

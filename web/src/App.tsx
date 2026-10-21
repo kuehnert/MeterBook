@@ -7,6 +7,7 @@ import {
   IconLogout,
   IconPlus,
   IconSettings,
+  IconCamera,
   IconShieldCheck,
   IconUsers,
 } from '@tabler/icons-react';
@@ -24,6 +25,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UsersPage } from './pages/UsersPage';
 import { BackupPage } from './pages/BackupPage';
+import { CapturePage } from './pages/CapturePage';
 import { Badge } from '@mantine/core';
 import type { Health } from './lib/types';
 
@@ -87,6 +89,7 @@ function Shell({ user }: { user: User }) {
       <AppShell.Navbar p="xs">
         <AppShell.Section grow component={ScrollArea}>
           {link('/', 'Übersicht', <IconDashboard size={18} />, true)}
+          {link('/ablesen', 'Ablesen', <IconCamera size={18} />, true)}
           <Text size="xs" fw={600} c="dimmed" tt="uppercase" px="sm" pt="md" pb={4}>
             Zähler
           </Text>
@@ -109,6 +112,7 @@ function Shell({ user }: { user: User }) {
       <AppShell.Main>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/ablesen" element={<CapturePage />} />
           <Route path="/meters/new" element={<NewMeterPage />} />
           <Route path="/meters/:id/*" element={<MeterPage />} />
           <Route path="/reports" element={<ReportsPage />} />
