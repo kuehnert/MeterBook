@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.AddAPhoto
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +61,7 @@ fun HomeScreen(
     onSettings: () -> Unit,
 ) {
     var items by remember { mutableStateOf(app.repo.cachedOverview() ?: emptyList()) }
+    var env by remember { mutableStateOf<String?>(null) }
     var offline by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -82,12 +84,23 @@ fun HomeScreen(
             }
         }
     }
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(Unit) {
+        load()
+        env = runCatching { app.api.health().env }.getOrNull()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("MeterBook") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("MeterBook")
+                        env?.let {
+                            Spacer(Modifier.width(8.dp))
+                            Badge(containerColor = MaterialTheme.colorScheme.tertiary) { Text(it, Modifier.padding(horizontal = 4.dp)) }
+                        }
+                    }
+                },
                 actions = { IconButton(onClick = onSettings) { Icon(Icons.Outlined.Settings, "Einstellungen") } },
             )
         },

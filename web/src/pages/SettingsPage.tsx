@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, Group, PasswordInput, SegmentedControl, Sta
 import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { DataTakeout } from '../components/DataTakeout';
 import { currentUser, get, logout, post } from '../lib/api';
 import { setNumberFormat, useNumberFormat } from '../lib/prefs';
 import type { Health } from '../lib/types';
@@ -72,6 +73,7 @@ export function SettingsPage() {
           </Text>
         </Stack>
       </Card>
+      <DataTakeout />
       <Card withBorder>
         <form onSubmit={change}>
           <Stack>

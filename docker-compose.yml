@@ -1,13 +1,16 @@
-# Feste Version für den Betrieb (Tags siehe README).
+# MeterBook – Produktion. Feste Version (Tags siehe README).
 # Update: Version erhöhen, dann "docker compose pull && docker compose up -d".
+name: meterbook
 services:
   meterbook:
-    image: ghcr.io/kuehnert/meterbook:0.1.1
+    image: ghcr.io/kuehnert/meterbook:0.2.0
     container_name: meterbook
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-3000}:3000"
     volumes:
+      # Unter Windows (Docker Desktop) ist ein benanntes Volume robuster als ein Windows-Ordner,
+      # siehe README "Daten-Ordner unter Windows": - meterbook-data:/data
       - ./data:/data
     environment:
       JWT_SECRET: ${JWT_SECRET}
@@ -16,3 +19,9 @@ services:
       ADMIN_NAME: ${ADMIN_NAME:-Admin}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OCR_MODEL: ${OCR_MODEL:-claude-opus-5-5}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      BACKUP_TOKEN: ${BACKUP_TOKEN:-}
+      PHOTO_RETENTION_DAYS: ${PHOTO_RETENTION_DAYS:-400}
+# volumes:
+#   meterbook-data: {}

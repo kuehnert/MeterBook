@@ -1,0 +1,31 @@
+# MeterBook – Testumgebung neben der Produktion.
+# Läuft mit dem Image "edge" (aktueller Stand von main), eigenen Daten und eigenem Port.
+#
+#   cp .env.example .env.dev      # eigenes JWT_SECRET, eigener Admin!
+#   docker compose -f docker-compose.dev.yml --env-file .env.dev pull
+#   docker compose -f docker-compose.dev.yml --env-file .env.dev up -d
+#
+# Im Web und in der App erscheint oben ein orangefarbenes "dev".
+# Echte Daten zum Testen: Sicherung aus der Produktion herunterladen und hier unter
+# "Sicherung → Aus Datei wiederherstellen" einspielen.
+name: meterbook-dev
+services:
+  meterbook-dev:
+    image: ghcr.io/kuehnert/meterbook:edge
+    container_name: meterbook-dev
+    restart: unless-stopped
+    ports:
+      - "${DEV_PORT:-3001}:3000"
+    volumes:
+      - ./data-dev:/data
+    environment:
+      MB_ENV: dev
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OCR_MODEL: ${OCR_MODEL:-claude-opus-5-5}
+      # Testdaten müssen nicht täglich gesichert werden
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-0}
+      PHOTO_RETENTION_DAYS: ${PHOTO_RETENTION_DAYS:-30}

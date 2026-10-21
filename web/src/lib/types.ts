@@ -133,4 +133,6 @@ export interface Health {
   status: string;
   version: string;
   ocr: boolean;
+  /** Name der Umgebung, z. B. "dev"; null = Produktion */
+  env: string | null;
 }
