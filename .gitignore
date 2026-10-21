@@ -1,4 +1,10 @@
 node_modules
-data
+/data
 .env
 *.log
+/data-dev
+.env.dev
+
+# Build-Ausgaben
+web/dist
+*.tsbuildinfo
