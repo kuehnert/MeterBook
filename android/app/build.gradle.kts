@@ -17,12 +17,19 @@ android {
     }
 
     buildTypes {
+        // Testversion neben der echten App: eigene ID, eigener Name, eigene Anmeldung
+        debug {
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "MeterBook Dev")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Bis ein eigener Signaturschlüssel eingerichtet ist, mit dem Debug-Schlüssel signieren.
             signingConfig = signingConfigs.getByName("debug")
+            resValue("string", "app_name", "MeterBook")
         }
     }
     compileOptions {
@@ -32,6 +39,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        resValues = true
     }
 }
 

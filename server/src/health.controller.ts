@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { Public } from './auth/decorators';
+import { config } from './config';
 import { OcrService } from './photos/ocr.service';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
@@ -14,6 +15,6 @@ export class HealthController {
   @Public()
   @Get('health')
   health() {
-    return { status: 'ok', name: 'MeterBook', version, ocr: this.ocr.enabled };
+    return { status: 'ok', name: 'MeterBook', version, ocr: this.ocr.enabled, env: config.envName || null };
   }
 }

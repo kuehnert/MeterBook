@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "postinstall": "prisma generate",
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "cli": "node --env-file-if-exists=.env dist/cli.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",
@@ -25,6 +26,7 @@
     "class-validator": "0.15.1",
     "exceljs": "4.4.0",
     "exif-reader": "2.0.3",
+    "fflate": "0.8.3",
     "pdfkit": "0.20.2",
     "prisma": "6.19.3",
     "reflect-metadata": "0.2.2",

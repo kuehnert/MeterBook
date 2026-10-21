@@ -7,6 +7,7 @@ import {
   IconLogout,
   IconPlus,
   IconSettings,
+  IconShieldCheck,
   IconUsers,
 } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,6 +23,9 @@ import { NewMeterPage } from './pages/NewMeterPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { UsersPage } from './pages/UsersPage';
+import { BackupPage } from './pages/BackupPage';
+import { Badge } from '@mantine/core';
+import type { Health } from './lib/types';
 
 export function App() {
   const [user, setUser] = useState<User | null>(currentUser());
@@ -42,6 +46,7 @@ function Shell({ user }: { user: User }) {
   const [opened, { toggle, close }] = useDisclosure();
   const location = useLocation();
   const meters = useQuery({ queryKey: ['meters'], queryFn: () => get<Meter[]>('/meters') });
+  const health = useQuery({ queryKey: ['health'], queryFn: () => get<Health>('/health'), staleTime: Infinity });
   useEffect(close, [location.pathname, close]);
 
   const link = (to: string, label: string, icon: React.ReactNode, exact = false) => {
@@ -68,6 +73,11 @@ function Shell({ user }: { user: User }) {
               <IconGauge size={18} />
             </ThemeIcon>
             <Title order={4}>MeterBook</Title>
+            {health.data?.env && (
+              <Badge color="orange" variant="filled">
+                {health.data.env}
+              </Badge>
+            )}
           </Group>
           <Text size="sm" c="dimmed" visibleFrom="xs">
             {user.name}
@@ -90,6 +100,7 @@ function Shell({ user }: { user: User }) {
           {link('/reports', 'Berichte & Export', <IconFileReport size={18} />)}
           {link('/settings', 'Einstellungen', <IconSettings size={18} />)}
           {user.role === 'ADMIN' && link('/users', 'Nutzer', <IconUsers size={18} />)}
+          {user.role === 'ADMIN' && link('/backup', 'Sicherung', <IconShieldCheck size={18} />)}
         </AppShell.Section>
         <AppShell.Section>
           <NavLink label="Abmelden" leftSection={<IconLogout size={18} />} onClick={() => void logout()} />
@@ -103,6 +114,7 @@ function Shell({ user }: { user: User }) {
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           {user.role === 'ADMIN' && <Route path="/users" element={<UsersPage />} />}
+          {user.role === 'ADMIN' && <Route path="/backup" element={<BackupPage />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell.Main>

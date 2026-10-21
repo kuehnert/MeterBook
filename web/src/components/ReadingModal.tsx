@@ -6,12 +6,10 @@ import {
   Image,
   Loader,
   Modal,
-  NumberInput,
   Stack,
   Text,
   TextInput,
 } from '@mantine/core';
-import { DateTimePicker } from '@mantine/dates';
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
 import { notifications } from '@mantine/notifications';
 import { IconAlertTriangle, IconCamera, IconSparkles } from '@tabler/icons-react';
@@ -22,6 +20,8 @@ import { get, post } from '../lib/api';
 import { num } from '../lib/format';
 import type { Health, Meter, ReadingGroup, RegisterWarnings, UploadResult } from '../lib/types';
 import { AuthImage } from './AuthImage';
+import { DateTimeField } from './DateFields';
+import { DecimalInput } from './DecimalInput';
 
 interface Props {
   meter: Meter;
@@ -207,12 +207,11 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
           </Alert>
         )}
 
-        <DateTimePicker
+        <DateTimeField
           label="Zeitpunkt der Ablesung"
           value={readAt}
           onChange={(v) => {
-            if (!v) return;
-            setReadAt(dayjs(v).format(FORMAT));
+            setReadAt(v);
             setReadAtTouched(true);
           }}
           description={
@@ -222,7 +221,6 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
                 ? 'Aus dem Dateinamen des Fotos übernommen'
                 : undefined
           }
-          valueFormat="DD.MM.YYYY HH:mm"
           maxDate={dayjs().format(FORMAT)}
         />
 
@@ -231,7 +229,7 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
           const w = warningsFor(r.id);
           return (
             <Stack key={r.id} gap={4}>
-              <NumberInput
+              <DecimalInput
                 label={
                   <Group gap={6} component="span">
                     <span>{meter.registers.length > 1 ? `Zählwerk ${r.name}` : 'Zählerstand'}</span>
@@ -245,8 +243,6 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
                 description={r.lastReading ? `Zuletzt ${num(r.lastReading.value, r.decimals)} ${meter.unit}` : undefined}
                 value={values[r.id] ?? ''}
                 onChange={(v) => setValues((s) => ({ ...s, [r.id]: v === '' ? '' : Number(v) }))}
-                decimalSeparator=","
-                thousandSeparator="."
                 decimalScale={r.decimals}
                 min={0}
                 hideControls

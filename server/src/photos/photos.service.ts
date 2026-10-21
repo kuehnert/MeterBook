@@ -35,11 +35,11 @@ export class PhotosService {
     private readonly ocr: OcrService,
   ) {}
 
-  private dir(userId: string) {
+  dir(userId: string) {
     return path.join(config.dataDir, 'photos', userId);
   }
 
-  private file(userId: string, photoId: string, variant: 'full' | 'thumb') {
+  file(userId: string, photoId: string, variant: 'full' | 'thumb') {
     return path.join(this.dir(userId), `${photoId}${variant === 'thumb' ? '_thumb' : ''}.jpg`);
   }
 
@@ -195,7 +195,19 @@ export class PhotosService {
     const photo = await this.prisma.photo.findFirst({ where: { id: photoId, userId } });
     if (!photo) throw new NotFoundException('Foto nicht gefunden');
     await this.prisma.photo.delete({ where: { id: photoId } });
+    await this.removeFiles(userId, photoId);
+  }
+
+  async removeFiles(userId: string, photoId: string) {
     await rm(this.file(userId, photoId, 'full'), { force: true });
     await rm(this.file(userId, photoId, 'thumb'), { force: true });
+  }
+
+  /** Speichert ein Foto aus einer Sicherung; das Vorschaubild wird neu berechnet. */
+  async writeFiles(userId: string, photoId: string, full: Buffer) {
+    const thumb = await sharp(full).resize({ width: 480, height: 480, fit: 'inside' }).jpeg({ quality: 75 }).toBuffer();
+    await mkdir(this.dir(userId), { recursive: true });
+    await writeFile(this.file(userId, photoId, 'full'), full);
+    await writeFile(this.file(userId, photoId, 'thumb'), thumb);
   }
 }
