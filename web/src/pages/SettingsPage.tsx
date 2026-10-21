@@ -1,8 +1,9 @@
-import { Alert, Badge, Button, Card, Group, PasswordInput, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, PasswordInput, SegmentedControl, Stack, Text, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { currentUser, get, logout, post } from '../lib/api';
+import { setNumberFormat, useNumberFormat } from '../lib/prefs';
 import type { Health } from '../lib/types';
 
 export function SettingsPage() {
@@ -12,6 +13,7 @@ export function SettingsPage() {
   const [next, setNext] = useState('');
   const [repeat, setRepeat] = useState('');
   const [busy, setBusy] = useState(false);
+  const numberFormat = useNumberFormat();
   const [error, setError] = useState<string | null>(null);
 
   const change = async (e: React.FormEvent) => {
@@ -51,6 +53,23 @@ export function SettingsPage() {
             )}
             {health.data && <Badge variant="outline" color="gray">Version {health.data.version}</Badge>}
           </Group>
+        </Stack>
+      </Card>
+      <Card withBorder>
+        <Stack gap="xs">
+          <Title order={4}>Zahleneingabe</Title>
+          <SegmentedControl
+            value={numberFormat}
+            onChange={(v) => setNumberFormat(v === 'en' ? 'en' : 'de')}
+            data={[
+              { value: 'de', label: 'Deutsch: 1.234,5' },
+              { value: 'en', label: 'Englisch: 1,234.5' },
+            ]}
+          />
+          <Text size="xs" c="dimmed">
+            Gilt für Eingabefelder auf diesem Gerät. Beim Einfügen werden beide Schreibweisen erkannt, z. B. „79,820.00“ als
+            79.820; nur bei Fällen wie „79,820“ entscheidet diese Einstellung.
+          </Text>
         </Stack>
       </Card>
       <Card withBorder>

@@ -1,5 +1,4 @@
-import { ActionIcon, Button, Card, Group, Modal, NumberInput, Stack, Table, Text, TextInput, Title } from '@mantine/core';
-import { DateTimePicker } from '@mantine/dates';
+import { ActionIcon, Button, Card, Group, Modal, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { IconArchive, IconReplace, IconTrash } from '@tabler/icons-react';
@@ -7,6 +6,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { DateTimeField } from '../../components/DateFields';
+import { DecimalInput } from '../../components/DecimalInput';
 import { MeterForm, toFormValues, toPayload } from '../../components/MeterForm';
 import { del, get, patch, post } from '../../lib/api';
 import { dateTime, num } from '../../lib/format';
@@ -199,24 +200,20 @@ export function SettingsTab({ meter }: { meter: Meter }) {
       <Modal opened={!!ex} onClose={() => setEx(null)} title="Gerätewechsel erfassen">
         {ex && (
           <Stack>
-            <DateTimePicker label="Zeitpunkt des Wechsels" value={ex.at} onChange={(v) => v && setEx({ ...ex, at: dayjs(v).format('YYYY-MM-DD HH:mm:ss') })} valueFormat="DD.MM.YYYY HH:mm" />
+            <DateTimeField label="Zeitpunkt des Wechsels" value={ex.at} onChange={(v) => setEx({ ...ex, at: v })} />
             {meter.registers.map((r) => (
               <Group key={r.id} grow>
-                <NumberInput
+                <DecimalInput
                   label={`Endstand alt${meter.registers.length > 1 ? ` (${r.name})` : ''}`}
                   value={ex.values[r.id]?.old ?? ''}
                   onChange={(v) => setEx({ ...ex, values: { ...ex.values, [r.id]: { ...ex.values[r.id], old: v === '' ? '' : Number(v) } } })}
-                  decimalSeparator=","
-                  thousandSeparator="."
                   decimalScale={r.decimals}
                   hideControls
                 />
-                <NumberInput
+                <DecimalInput
                   label="Anfangsstand neu"
                   value={ex.values[r.id]?.neu ?? ''}
                   onChange={(v) => setEx({ ...ex, values: { ...ex.values, [r.id]: { ...ex.values[r.id], neu: v === '' ? '' : Number(v) } } })}
-                  decimalSeparator=","
-                  thousandSeparator="."
                   decimalScale={r.decimals}
                   hideControls
                 />

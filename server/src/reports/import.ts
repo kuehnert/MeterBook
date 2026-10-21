@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { parseDecimal } from '../common/parse-number';
 
 export interface RawImportRow {
   line: number;
@@ -85,7 +86,8 @@ export async function parseImportFile(buffer: Buffer, fileName: string): Promise
           v instanceof Date
             ? v.toISOString()
             : typeof v === 'number'
-              ? String(v)
+              ? // Excel-Zahlen sind eindeutig – mit Dezimalkomma, damit 79820.125 nicht als Tausender gilt
+                String(v).replace('.', ',')
               : v && typeof v === 'object' && 'result' in v
                 ? String((v as { result: unknown }).result ?? '')
                 : String(v ?? '');
@@ -115,11 +117,7 @@ export function parseDate(s: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Akzeptiert 29789,6 · 29.789,6 · 29789.6 */
+/** Akzeptiert 29789,6 · 29.789,6 · 29789.6 · 79,820.00 (englisch) – siehe parseDecimal */
 export function parseNumber(s: string): number | null {
-  let t = s.replace(/\s/g, '').replace(/[a-zA-Z³]+$/, '');
-  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
-  else if ((t.match(/\./g) ?? []).length > 1) t = t.replace(/\./g, '');
-  if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
-  return Number(t);
+  return parseDecimal(s, 'de');
 }

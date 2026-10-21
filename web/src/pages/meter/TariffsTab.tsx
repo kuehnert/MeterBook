@@ -1,5 +1,4 @@
-import { ActionIcon, Button, Card, Group, Modal, NumberInput, Stack, Table, Text, TextInput, Title } from '@mantine/core';
-import { DateInput } from '@mantine/dates';
+import { ActionIcon, Button, Card, Group, Modal, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -8,6 +7,8 @@ import dayjs from 'dayjs';
 import { useState } from 'react';
 import { del, get, post, put } from '../../lib/api';
 import { date, eur, price } from '../../lib/format';
+import { DateField } from '../../components/DateFields';
+import { DecimalInput } from '../../components/DecimalInput';
 import type { Advance, Meter, Tariff } from '../../lib/types';
 
 const DAY_FMT = 'YYYY-MM-DD';
@@ -235,13 +236,12 @@ export function TariffsTab({ meter }: { meter: Meter }) {
       <Modal opened={!!draft} onClose={() => setDraft(null)} title={draft?.id ? 'Tarif bearbeiten' : 'Neuer Tarif'}>
         {draft && (
           <Stack>
-            <DateInput label="Gültig ab" value={draft.validFrom} onChange={(v) => v && setDraft({ ...draft, validFrom: v })} valueFormat="DD.MM.YYYY" />
+            <DateField label="Gültig ab" value={draft.validFrom} onChange={(v) => setDraft({ ...draft, validFrom: v })} />
             <TextInput label="Bezeichnung" placeholder="z. B. Preisanpassung 2026" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.currentTarget.value })} />
-            <NumberInput
+            <DecimalInput
               label="Grundpreis pro Monat"
               value={draft.basePricePerMonth}
               onChange={(v) => setDraft({ ...draft, basePricePerMonth: v === '' ? '' : Number(v) })}
-              decimalSeparator=","
               decimalScale={2}
               min={0}
               rightSection={<Text size="sm" c="dimmed">€</Text>}
@@ -261,7 +261,7 @@ export function TariffsTab({ meter }: { meter: Meter }) {
                   }}
                   style={{ flex: 1 }}
                 />
-                <NumberInput
+                <DecimalInput
                   label={unitLabel}
                   value={c.pricePerUnit}
                   onChange={(v) => {
@@ -269,7 +269,6 @@ export function TariffsTab({ meter }: { meter: Meter }) {
                     components[i] = { ...c, pricePerUnit: v === '' ? '' : Number(v) };
                     setDraft({ ...draft, components });
                   }}
-                  decimalSeparator=","
                   decimalScale={4}
                   min={0}
                   w={120}
@@ -311,12 +310,11 @@ export function TariffsTab({ meter }: { meter: Meter }) {
       <Modal opened={!!adv} onClose={() => setAdv(null)} title={adv?.id ? 'Abschlag bearbeiten' : 'Neuer Abschlag'}>
         {adv && (
           <Stack>
-            <DateInput label="Gültig ab" value={adv.validFrom} onChange={(v) => v && setAdv({ ...adv, validFrom: v })} valueFormat="DD.MM.YYYY" />
-            <NumberInput
+            <DateField label="Gültig ab" value={adv.validFrom} onChange={(v) => setAdv({ ...adv, validFrom: v })} />
+            <DecimalInput
               label="Betrag pro Monat"
               value={adv.amountPerMonth}
               onChange={(v) => setAdv({ ...adv, amountPerMonth: v === '' ? '' : Number(v) })}
-              decimalSeparator=","
               decimalScale={2}
               min={0}
               rightSection={<Text size="sm" c="dimmed">€</Text>}
