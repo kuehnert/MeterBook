@@ -26,6 +26,27 @@ export function eur(n: number | null | undefined): string {
   return n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 }
 
+/** Arbeitspreise je kWh werden in Cent angegeben (üblich bei Strom und Wärme), alles andere in Euro. */
+export function usesCent(unit: string): boolean {
+  return unit.trim().toLowerCase() === 'kwh';
+}
+
+/** Arbeitspreis aus € pro Einheit, z. B. „31,50 ct/kWh“ oder „2,10 €/m³“ */
+export function unitPrice(eurPerUnit: number, unit: string): string {
+  if (usesCent(unit)) {
+    return `${(eurPerUnit * 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} ct/${unit}`;
+  }
+  return `${price(eurPerUnit)}/${unit}`;
+}
+
+/** Umrechnung zwischen gespeicherten €/Einheit und der Eingabe (ct/kWh bzw. €/Einheit) */
+export function toPriceInput(eurPerUnit: number, unit: string): number {
+  return usesCent(unit) ? Math.round(eurPerUnit * 100 * 1e6) / 1e6 : eurPerUnit;
+}
+export function fromPriceInput(value: number, unit: string): number {
+  return usesCent(unit) ? Math.round((value / 100) * 1e8) / 1e8 : value;
+}
+
 /** Preis pro Einheit mit bis zu 4 Nachkommastellen (z. B. 0,3125 €) */
 export function price(n: number): string {
   return `${n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} €`;

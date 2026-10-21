@@ -127,8 +127,9 @@ export async function blob(path: string): Promise<Blob> {
 export async function download(path: string, fallbackName: string) {
   const res = await raw(path);
   const cd = res.headers.get('Content-Disposition') ?? '';
-  const m = cd.match(/filename\*=UTF-8''([^;]+)/);
-  const name = m ? decodeURIComponent(m[1]) : fallbackName;
+  const star = cd.match(/filename\*=UTF-8''([^;]+)/);
+  const plain = cd.match(/filename="([^"]+)"/);
+  const name = star ? decodeURIComponent(star[1]) : plain ? plain[1] : fallbackName;
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
   a.href = url;

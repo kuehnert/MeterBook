@@ -2,10 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { Public } from './auth/decorators';
 import { config } from './config';
 import { OcrService } from './photos/ocr.service';
-import { readFileSync } from 'node:fs';
-import * as path from 'node:path';
-
-const { version } = JSON.parse(readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')) as { version: string };
+import { version } from './version';
 
 @Controller()
 export class HealthController {

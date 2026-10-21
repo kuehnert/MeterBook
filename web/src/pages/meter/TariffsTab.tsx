@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { del, get, post, put } from '../../lib/api';
-import { date, eur, price } from '../../lib/format';
+import { date, eur, fromPriceInput, toPriceInput, unitPrice, usesCent } from '../../lib/format';
 import { DateField } from '../../components/DateFields';
 import { DecimalInput } from '../../components/DecimalInput';
 import type { Advance, Meter, Tariff } from '../../lib/types';
@@ -29,7 +29,9 @@ export function TariffsTab({ meter }: { meter: Meter }) {
   const [adv, setAdv] = useState<{ id?: string; validFrom: string; amountPerMonth: number | ''; note: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const unitLabel = `€/${meter.unit}`;
+  // Eingabe in ct/kWh bzw. €/m³; gespeichert wird immer € pro Einheit
+  const unitLabel = usesCent(meter.unit) ? `ct/${meter.unit}` : `€/${meter.unit}`;
+  const toInput = (eurPerUnit: number) => toPriceInput(eurPerUnit, meter.unit);
 
   const newTariff = (): TariffDraft => {
     const last = tariffs.data?.[tariffs.data.length - 1];
@@ -38,7 +40,7 @@ export function TariffsTab({ meter }: { meter: Meter }) {
       validFrom: dayjs().startOf('month').format(DAY_FMT),
       basePricePerMonth: last?.basePricePerMonth ?? '',
       components: last
-        ? last.components.map((c) => ({ registerId: c.registerId, label: c.label, pricePerUnit: c.pricePerUnit }))
+        ? last.components.map((c) => ({ registerId: c.registerId, label: c.label, pricePerUnit: toInput(c.pricePerUnit) }))
         : meter.registers.map((r) => ({
             registerId: r.id,
             label: meter.medium === 'WATER' ? 'Frischwasser' : `Arbeitspreis ${meter.registers.length > 1 ? r.name : ''}`.trim(),
@@ -59,7 +61,7 @@ export function TariffsTab({ meter }: { meter: Meter }) {
         basePricePerMonth: Number(draft.basePricePerMonth || 0),
         components: draft.components
           .filter((c) => c.pricePerUnit !== '')
-          .map((c) => ({ registerId: c.registerId, label: c.label || 'Arbeitspreis', pricePerUnit: Number(c.pricePerUnit) })),
+          .map((c) => ({ registerId: c.registerId, label: c.label || 'Arbeitspreis', pricePerUnit: fromPriceInput(Number(c.pricePerUnit), meter.unit) })),
       };
       if (draft.id) await put(`/meters/${meter.id}/tariffs/${draft.id}`, body);
       else await post(`/meters/${meter.id}/tariffs`, body);
@@ -147,7 +149,7 @@ export function TariffsTab({ meter }: { meter: Meter }) {
                       {t.components.map((c) => (
                         <Text key={c.id} size="sm">
                           {c.label}
-                          {meter.registers.length > 1 && !c.label.includes(regName(c.registerId)) ? ` (${regName(c.registerId)})` : ''}: {price(c.pricePerUnit)}/{meter.unit}
+                          {meter.registers.length > 1 && !c.label.includes(regName(c.registerId)) ? ` (${regName(c.registerId)})` : ''}: {unitPrice(c.pricePerUnit, meter.unit)}
                         </Text>
                       ))}
                     </Table.Td>
@@ -165,7 +167,7 @@ export function TariffsTab({ meter }: { meter: Meter }) {
                               name: t.name ?? '',
                               validFrom: dayjs(t.validFrom).format(DAY_FMT),
                               basePricePerMonth: t.basePricePerMonth,
-                              components: t.components.map((c) => ({ registerId: c.registerId, label: c.label, pricePerUnit: c.pricePerUnit })),
+                              components: t.components.map((c) => ({ registerId: c.registerId, label: c.label, pricePerUnit: toInput(c.pricePerUnit) })),
                             })
                           }
                         >

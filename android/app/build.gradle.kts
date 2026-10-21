@@ -66,3 +66,15 @@ dependencies {
     implementation(libs.coil.compose)
     debugImplementation(libs.compose.ui.tooling)
 }
+
+// Fertige APKs mit sprechendem Namen nach <repo>/apk kopieren, z. B. meterbook-0.2.0.apk
+// und meterbook-dev-0.2.0.apk (Testversion). Läuft automatisch nach assembleRelease/assembleDebug.
+val appVersion = android.defaultConfig.versionName
+listOf("release" to "meterbook", "debug" to "meterbook-dev").forEach { (type, prefix) ->
+    val copy = tasks.register<Copy>("copy${type.replaceFirstChar { it.uppercase() }}Apk") {
+        from(layout.buildDirectory.dir("outputs/apk/$type")) { include("*.apk") }
+        into(rootProject.layout.projectDirectory.dir("../apk"))
+        rename { "$prefix-$appVersion.apk" }
+    }
+    tasks.matching { it.name == "assemble${type.replaceFirstChar { it.uppercase() }}" }.configureEach { finalizedBy(copy) }
+}

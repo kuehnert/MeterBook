@@ -19,25 +19,43 @@ import { timingSafeEqual } from 'node:crypto';
 import { AdminOnly, AuthUser, CurrentUser, Public } from '../auth/decorators';
 import { sha256 } from '../auth/password';
 import { config } from '../config';
+import { PrismaService } from '../prisma.service';
+import { version } from '../version';
 import { PhotoRetentionService } from '../photos/photo-retention.service';
 import { BackupService } from './backup.service';
 
 function sendZip(res: Response, name: string, buf: Buffer) {
   res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\w.-]/g, '_')}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`);
   res.send(buf);
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+/** Heutiges Datum in lokaler Zeit (TZ=Europe/Berlin), z. B. 2026-10-21 */
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 /** Datenmitnahme: jeder Nutzer exportiert und importiert seine eigenen Daten. */
 @Controller('me')
 export class TakeoutController {
-  constructor(private readonly backup: BackupService) {}
+  constructor(
+    private readonly backup: BackupService,
+    private readonly prisma: PrismaService,
+  ) {}
 
+  /** Dateiname z. B. MeterBook-0.2.0-Daten-Matthias-2026-10-21.zip */
   @Get('export')
   async export(@CurrentUser() u: AuthUser, @Res() res: Response) {
-    sendZip(res, `MeterBook-Daten-${today()}.zip`, await this.backup.exportUser(u.id));
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: u.id } });
+    const name = user.name
+      .normalize('NFKD')
+      .replace(/ß/g, 'ss')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^A-Za-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 30);
+    sendZip(res, `MeterBook-${version}-Daten${name ? `-${name}` : ''}-${today()}.zip`, await this.backup.exportUser(u.id));
   }
 
   /** ZIP oder JSON aus /me/export. Mit dryRun=true nur prüfen. Vorhandenes wird ergänzt, nie gelöscht. */
