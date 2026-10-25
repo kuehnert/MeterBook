@@ -1,10 +1,11 @@
-import { ActionIcon, Badge, Button, Card, Group, Modal, PasswordInput, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { ActionIcon, Badge, Button, Card, Checkbox, Group, Modal, PasswordInput, Select, Stack, Table, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconMailForward, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { User, currentUser, del, get, patch, post } from '../lib/api';
+import type { Health } from '../lib/types';
 
 interface Draft {
   id?: string;
@@ -12,6 +13,8 @@ interface Draft {
   name: string;
   password: string;
   role: 'ADMIN' | 'USER';
+  /** Neues Konto: Einladung per E-Mail statt Passwort */
+  invite: boolean;
 }
 
 export function UsersPage() {
@@ -20,6 +23,17 @@ export function UsersPage() {
   const users = useQuery({ queryKey: ['users'], queryFn: () => get<User[]>('/users') });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const health = useQuery({ queryKey: ['health'], queryFn: () => get<Health>('/health'), staleTime: Infinity });
+  const outbox = health.data?.mail === 'outbox';
+
+  const sendLink = async (u: User) => {
+    try {
+      await post(`/users/${u.id}/invite`);
+      notifications.show({ color: 'green', message: `E-Mail an ${u.email} ${outbox ? 'abgelegt (Testbetrieb)' : 'verschickt'}` });
+    } catch (e) {
+      notifications.show({ color: 'red', message: e instanceof Error ? e.message : 'Fehler' });
+    }
+  };
 
   const save = async () => {
     if (!draft) return;
@@ -28,10 +42,18 @@ export function UsersPage() {
       if (draft.id) {
         await patch(`/users/${draft.id}`, { name: draft.name, role: draft.role, password: draft.password || undefined });
       } else {
-        await post('/users', draft);
+        await post('/users', {
+          email: draft.email,
+          name: draft.name,
+          role: draft.role,
+          ...(draft.invite ? { invite: true } : { password: draft.password }),
+        });
       }
       await qc.invalidateQueries({ queryKey: ['users'] });
-      notifications.show({ color: 'green', message: draft.id ? 'Gespeichert' : `Konto für ${draft.name} angelegt` });
+      notifications.show({
+        color: 'green',
+        message: draft.id ? 'Gespeichert' : draft.invite ? `Einladung an ${draft.email} gesendet` : `Konto für ${draft.name} angelegt`,
+      });
       setDraft(null);
     } catch (e) {
       notifications.show({ color: 'red', message: e instanceof Error ? e.message : 'Fehler' });
@@ -46,10 +68,10 @@ export function UsersPage() {
         <div>
           <Title order={2}>Nutzer</Title>
           <Text size="sm" c="dimmed">
-            Jedes Konto hat eigene Zähler und Daten. Die Zugangsdaten gibst du an die Person weiter; sie kann ihr Passwort danach selbst ändern.
+            Jedes Konto hat eigene Zähler und Daten. Neue Nutzer bekommen eine Einladung per E-Mail und legen ihr Passwort selbst fest.
           </Text>
         </div>
-        <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft({ email: '', name: '', password: '', role: 'USER' })}>
+        <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft({ email: '', name: '', password: '', role: 'USER', invite: true })}>
           Nutzer anlegen
         </Button>
       </Group>
@@ -67,13 +89,25 @@ export function UsersPage() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge variant="light" color={u.role === 'ADMIN' ? 'blue' : 'gray'}>
-                    {u.role === 'ADMIN' ? 'Administrator' : 'Nutzer'}
-                  </Badge>
+                  <Group gap={4}>
+                    <Badge variant="light" color={u.role === 'ADMIN' ? 'blue' : 'gray'}>
+                      {u.role === 'ADMIN' ? 'Administrator' : 'Nutzer'}
+                    </Badge>
+                    {u.pending && (
+                      <Badge variant="light" color="orange">
+                        eingeladen
+                      </Badge>
+                    )}
+                  </Group>
                 </Table.Td>
                 <Table.Td>
                   <Group gap={2} justify="flex-end">
-                    <ActionIcon variant="subtle" aria-label="Bearbeiten" onClick={() => setDraft({ id: u.id, email: u.email, name: u.name, password: '', role: u.role })}>
+                    <Tooltip label={u.pending ? 'Einladung erneut senden' : 'Link zum Passwort festlegen senden'}>
+                      <ActionIcon variant="subtle" aria-label="Link senden" disabled={u.id === me?.id} onClick={() => sendLink(u)}>
+                        <IconMailForward size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                    <ActionIcon variant="subtle" aria-label="Bearbeiten" onClick={() => setDraft({ id: u.id, email: u.email, name: u.name, password: '', role: u.role, invite: false })}>
                       <IconEdit size={16} />
                     </ActionIcon>
                     <ActionIcon
@@ -113,13 +147,21 @@ export function UsersPage() {
           <Stack>
             <TextInput label="Name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.currentTarget.value })} required />
             <TextInput label="E-Mail" type="email" value={draft.email} disabled={!!draft.id} onChange={(e) => setDraft({ ...draft, email: e.currentTarget.value })} required />
-            <PasswordInput
+            {!draft.id && (
+              <Checkbox
+                label="Einladung per E-Mail senden"
+                description={outbox ? 'Testbetrieb: Die E-Mail wird nur auf dem Server abgelegt' : 'Die Person legt ihr Passwort selbst fest (Link 7 Tage gültig)'}
+                checked={draft.invite}
+                onChange={(e) => setDraft({ ...draft, invite: e.currentTarget.checked })}
+              />
+            )}
+            {(draft.id || !draft.invite) && <PasswordInput
               label={draft.id ? 'Neues Passwort' : 'Passwort'}
               description={draft.id ? 'Leer lassen, um es nicht zu ändern' : 'Mindestens 8 Zeichen'}
               value={draft.password}
               onChange={(e) => setDraft({ ...draft, password: e.currentTarget.value })}
               autoComplete="new-password"
-            />
+            />}
             <Select
               label="Rolle"
               data={[

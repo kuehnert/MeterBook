@@ -30,6 +30,16 @@ export const config = {
   },
   /** Fotos werden nach so vielen Tagen gelöscht (die Ablesungen bleiben); 0 = nie */
   photoRetentionDays: Number(process.env.PHOTO_RETENTION_DAYS ?? 400),
+  /** Adresse, unter der Web-App und Links in E-Mails erreichbar sind, z. B. https://meterbook.example.org */
+  publicUrl: (process.env.PUBLIC_URL || `http://localhost:${process.env.PORT ?? 3000}`).replace(/\/+$/, ''),
+  mail: {
+    /** SMTP-Server, z. B. mail.smtp2go.com; leer = E-Mails landen als .eml-Dateien in DATA_DIR/mail-outbox */
+    host: process.env.SMTP_HOST ?? '',
+    port: Number(process.env.SMTP_PORT ?? 587),
+    user: process.env.SMTP_USER ?? '',
+    pass: process.env.SMTP_PASS ?? '',
+    from: process.env.MAIL_FROM || 'MeterBook <meterbook@localhost>',
+  },
   admin: {
     email: process.env.ADMIN_EMAIL ?? '',
     password: process.env.ADMIN_PASSWORD ?? '',

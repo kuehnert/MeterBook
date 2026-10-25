@@ -127,7 +127,27 @@ class Api(private val session: Session) {
     suspend fun series(meterId: String, granularity: String = "month"): Series = get("/stats/meters/$meterId/series?granularity=$granularity")
 
     suspend fun check(meterId: String, group: ReadingGroupIn): List<RegisterWarnings> = post("/meters/$meterId/readings/check", group)
-    suspend fun saveReading(meterId: String, group: ReadingGroupIn): SaveResult = post("/meters/$meterId/readings", group)
+    suspend fun saveReading(meterId: String, group: ReadingGroupIn): SaveResult =
+        post<ReadingGroupIn, SaveResult>("/meters/$meterId/readings", group).also { onReadingSaved?.invoke() }
+
+    /** Wird nach jeder gespeicherten Ablesung aufgerufen (Erinnerung neu prüfen) */
+    var onReadingSaved: (() -> Unit)? = null
+
+    suspend fun reminder(): ReminderState = get("/me/reminder")
+
+    suspend fun updateReminder(settings: ReminderSettingsIn): ReminderState =
+        json.decodeFromString(execute({ Request.Builder().url(url("/me/reminder")).put(json.encodeToString(settings).toRequestBody(jsonType)) }))
+
+    /** which: current | next | none */
+    suspend fun skipReminder(which: String): ReminderState = post("/me/reminder/skip", ReminderSkipIn(which))
+
+    /** „Passwort vergessen“: der Server schickt einen Link per E-Mail. */
+    suspend fun forgotPassword(email: String) {
+        execute(
+            { Request.Builder().url(url("/auth/forgot")).post("""{"email":${json.encodeToString(email.trim())}}""".toRequestBody(jsonType)) },
+            auth = false,
+        )
+    }
 
     /**
      * Foto in den Eingang hochladen; die Erkennung läuft auf dem Server im Hintergrund.

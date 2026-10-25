@@ -46,56 +46,6 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     }
 }
 
-/** Erinnert ans Ablesen, wenn ein Zähler länger nicht abgelesen wurde. */
-class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
-        val app = applicationContext as MeterBookApp
-        val days = app.session.reminderDays
-        if (days == 0 || app.session.user.value == null) return Result.success()
-        val due = try {
-            app.api.overview().filter { (it.daysSinceLastReading ?: Int.MAX_VALUE) >= days }.map { it.meter.name }
-        } catch (_: Exception) {
-            return Result.success()
-        }
-        if (due.isNotEmpty()) notify(applicationContext, due)
-        return Result.success()
-    }
-
-    private fun notify(context: Context, meters: List<String>) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        val intent = PendingIntent.getActivity(
-            context, 0,
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-            PendingIntent.FLAG_IMMUTABLE,
-        )
-        val n = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Zeit zum Ablesen")
-            .setContentText(meters.joinToString(", "))
-            .setContentIntent(intent)
-            .setAutoCancel(true)
-            .build()
-        NotificationManagerCompat.from(context).notify(1, n)
-    }
-
-    companion object {
-        const val CHANNEL = "reminders"
-
-        fun createChannel(context: Context) {
-            val nm = context.getSystemService(NotificationManager::class.java)
-            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Erinnerungen ans Ablesen", NotificationManager.IMPORTANCE_DEFAULT))
-        }
-
-        /** Prüft einmal täglich, ob eine Erinnerung fällig ist. */
-        fun schedule(context: Context) {
-            val req = PeriodicWorkRequestBuilder<ReminderWorker>(1, TimeUnit.DAYS)
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork("reminder", ExistingPeriodicWorkPolicy.KEEP, req)
-        }
-    }
-}
-
 /**
  * Lädt Fotos aus dem Eingang hoch, sobald Netz da ist, wartet auf die Erkennung auf dem Server
  * und meldet per Benachrichtigung, wenn Fotos zum Prüfen bereitliegen.

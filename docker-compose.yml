@@ -23,5 +23,11 @@ services:
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
       BACKUP_TOKEN: ${BACKUP_TOKEN:-}
       PHOTO_RETENTION_DAYS: ${PHOTO_RETENTION_DAYS:-400}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
 # volumes:
 #   meterbook-data: {}

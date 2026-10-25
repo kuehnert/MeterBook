@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,7 @@ fun LoginScreen(app: MeterBookApp) {
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var info by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun submit() {
@@ -58,6 +60,29 @@ fun LoginScreen(app: MeterBookApp) {
                 error = "Server nicht erreichbar. Adresse prüfen – z. B. https://meterbook.example.de"
             } catch (e: Exception) {
                 error = e.message ?: "Anmeldung fehlgeschlagen"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    /** Link zum Zurücksetzen per E-Mail anfordern */
+    fun forgot() {
+        busy = true
+        error = null
+        info = null
+        scope.launch {
+            try {
+                val url = server.trim().trimEnd('/')
+                app.api.health(url)
+                app.session.serverUrl = url
+                app.api.forgotPassword(email)
+                info = "Wenn es zu dieser Adresse ein Konto gibt, ist jetzt eine E-Mail mit einem Link unterwegs. " +
+                    "Darüber legst du ein neues Passwort fest und meldest dich dann hier an."
+            } catch (e: OfflineException) {
+                error = "Server nicht erreichbar. Adresse prüfen – z. B. https://meterbook.example.de"
+            } catch (e: Exception) {
+                error = e.message ?: "Das hat nicht geklappt"
             } finally {
                 busy = false
             }
@@ -97,9 +122,16 @@ fun LoginScreen(app: MeterBookApp) {
                 Spacer(Modifier.height(12.dp))
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
+            info?.let {
+                Spacer(Modifier.height(12.dp))
+                Text(it, color = MaterialTheme.colorScheme.primary)
+            }
             Spacer(Modifier.height(24.dp))
             Button(onClick = ::submit, enabled = !busy && email.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth().height(48.dp)) {
                 if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text("Anmelden")
+            }
+            TextButton(onClick = ::forgot, enabled = !busy && email.isNotBlank()) {
+                Text(if (email.isBlank()) "Passwort vergessen? E-Mail oben eingeben" else "Passwort vergessen?")
             }
         }
     }

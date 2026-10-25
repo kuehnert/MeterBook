@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { ICON_COLOR, MediumIcon, iconOf } from '../components/MediumIcon';
 import { ReadingModal } from '../components/ReadingModal';
+import { ReminderAlert } from '../components/Reminder';
 import { get } from '../lib/api';
 import { daysAgo, eur, lastDay, num } from '../lib/format';
 import type { Meter, Overview } from '../lib/types';
@@ -23,6 +24,7 @@ export function DashboardPage() {
 
   return (
     <Stack>
+      <ReminderAlert />
       {inboxCount > 0 && (
         <Alert color="blue" variant="light" icon={<IconInbox size={18} />}>
           <Group justify="space-between">

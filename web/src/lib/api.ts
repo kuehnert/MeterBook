@@ -5,6 +5,8 @@ export interface User {
   email: string;
   name: string;
   role: 'ADMIN' | 'USER';
+  /** Eingeladen, Passwort noch nicht festgelegt */
+  pending?: boolean;
 }
 
 interface Tokens {
@@ -146,6 +148,18 @@ export async function login(email: string, password: string) {
   });
   if (!res.ok) throw await parseError(res);
   setSession(await res.json());
+}
+
+/** Aufruf ohne Anmeldung (Passwort vergessen, Link aus der E-Mail) */
+export async function publicPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch('/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) throw await parseError(res);
+  return res.status === 204 ? (undefined as T) : res.json();
+}
+
+/** Passwort über den Link aus Einladung oder „Passwort vergessen“ festlegen – meldet direkt an. */
+export async function setPasswordWithLink(token: string, password: string) {
+  setSession(await publicPost<Tokens>('/auth/set-password', { token, password }));
 }
 
 export async function logout() {

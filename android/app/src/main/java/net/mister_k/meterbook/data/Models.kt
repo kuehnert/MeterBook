@@ -9,7 +9,32 @@ data class User(val id: String, val email: String, val name: String, val role: S
 data class TokenPair(val accessToken: String, val refreshToken: String, val expiresIn: Int, val user: User)
 
 @Serializable
-data class Health(val status: String, val version: String, val ocr: Boolean, val env: String? = null)
+data class Health(val status: String, val version: String, val ocr: Boolean, val env: String? = null, val mail: String? = null)
+
+/** Erinnerung ans Ablesen – auf dem Server gespeichert, gilt für E-Mail, App und Web. */
+@Serializable
+data class ReminderState(
+    /** OFF | WEEKLY | MONTHLY */
+    val interval: String = "OFF",
+    val email: Boolean = true,
+    val skipUntil: String? = null,
+    /** Aktueller Termin (ISO), null = aus */
+    val current: String? = null,
+    val next: String? = null,
+    val skipped: Boolean = false,
+    val due: List<ReminderDue> = emptyList(),
+    /** Termin da, nicht übersprungen und noch etwas abzulesen */
+    val active: Boolean = false,
+)
+
+@Serializable
+data class ReminderDue(val id: String, val name: String)
+
+@Serializable
+data class ReminderSettingsIn(val interval: String? = null, val email: Boolean? = null)
+
+@Serializable
+data class ReminderSkipIn(val which: String)
 
 @Serializable
 data class LastReading(val readAt: String, val value: Double)

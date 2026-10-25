@@ -20,6 +20,7 @@ import { User, currentUser, get, logout, onAuthChange } from './lib/api';
 import type { Meter } from './lib/types';
 import { DashboardPage } from './pages/DashboardPage';
 import { LoginPage } from './pages/LoginPage';
+import { SetPasswordPage } from './pages/SetPasswordPage';
 import { MeterPage } from './pages/MeterPage';
 import { NewMeterPage } from './pages/NewMeterPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -34,6 +35,7 @@ import type { Health } from './lib/types';
 export function App() {
   const [user, setUser] = useState<User | null>(currentUser());
   const qc = useQueryClient();
+  const location = useLocation();
   useEffect(
     () =>
       onAuthChange((u) => {
@@ -42,6 +44,8 @@ export function App() {
       }),
     [qc],
   );
+  // Link aus Einladung oder „Passwort vergessen“ – auch wenn auf diesem Gerät jemand angemeldet ist
+  if (location.pathname === '/passwort-setzen') return <SetPasswordPage />;
   if (!user) return <LoginPage />;
   return <Shell user={user} />;
 }

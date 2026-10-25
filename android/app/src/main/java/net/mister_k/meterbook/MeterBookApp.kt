@@ -32,6 +32,11 @@ class MeterBookApp : Application() {
         PhotoWorker.createChannel(this)
         ReminderWorker.createChannel(this)
         ReminderWorker.schedule(this)
+        // Nach dem Ablesen verschwindet die Erinnerung, sobald nichts mehr fällig ist
+        api.onReadingSaved = { ReminderWorker.checkNow(this) }
+        // Frische Installation: nichts von 0.2 zu übernehmen
+        if (!session.reminderMigrated && session.user.value == null) session.reminderMigrated = true
+        if (!session.reminderMigrated) ReminderWorker.checkNow(this)
         if (queue.items.value.isNotEmpty()) SyncWorker.enqueue(this)
         if (photoInbox.local.value.isNotEmpty()) PhotoWorker.enqueue(this)
     }

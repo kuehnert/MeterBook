@@ -37,17 +37,43 @@ import kotlinx.coroutines.launch
 import androidx.compose.material3.Switch
 import net.mister_k.meterbook.BuildConfig
 import net.mister_k.meterbook.MeterBookApp
+import androidx.compose.material3.TextButton
 import net.mister_k.meterbook.data.Health
+import net.mister_k.meterbook.data.ReminderSettingsIn
+import net.mister_k.meterbook.data.ReminderState
+import net.mister_k.meterbook.work.ReminderWorker
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+/** z. B. „Montag, 26. Oktober, 9 Uhr“ */
+private fun reminderDate(iso: String): String =
+    Instant.parse(iso).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEEE, d. MMMM, H 'Uhr'", Locale.GERMAN))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(app: MeterBookApp, onBack: () -> Unit) {
     val user by app.session.user.collectAsStateWithLifecycle()
-    var reminder by remember { mutableStateOf(app.session.reminderDays) }
+    var reminder by remember { mutableStateOf<ReminderState?>(null) }
+    var sticky by remember { mutableStateOf(app.session.reminderSticky) }
     var gallery by remember { mutableStateOf(app.session.saveToGallery) }
     var health by remember { mutableStateOf<Health?>(null) }
     val scope = rememberCoroutineScope()
-    LaunchedEffect(Unit) { health = runCatching { app.api.health() }.getOrNull() }
+    LaunchedEffect(Unit) {
+        health = runCatching { app.api.health() }.getOrNull()
+        reminder = runCatching { app.api.reminder() }.getOrNull()
+    }
+
+    /** Erinnerung auf dem Server ändern, danach die Benachrichtigung an den neuen Stand anpassen */
+    fun changeReminder(call: suspend () -> ReminderState) {
+        scope.launch {
+            runCatching { call() }.onSuccess {
+                reminder = it
+                ReminderWorker.update(app, it)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -86,21 +112,69 @@ fun SettingsScreen(app: MeterBookApp, onBack: () -> Unit) {
             )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             Text("Erinnerung ans Ablesen", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp))
-            Text(
-                "Benachrichtigung, wenn ein Zähler so lange nicht abgelesen wurde.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            Spacer(Modifier.height(8.dp))
-            val options = listOf(0 to "Aus", 7 to "Wöchentlich", 30 to "Monatlich")
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                options.forEachIndexed { i, (days, label) ->
-                    SegmentedButton(
-                        selected = reminder == days,
-                        onClick = { reminder = days; app.session.reminderDays = days },
-                        shape = SegmentedButtonDefaults.itemShape(i, options.size),
-                    ) { Text(label) }
+            val r = reminder
+            if (r == null) {
+                Text(
+                    "Nur mit Verbindung zum Server einstellbar.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            } else {
+                Text(
+                    when (r.interval) {
+                        "WEEKLY" -> "Jeden Montag um 9 Uhr – bis alle Zähler abgelesen sind. Wer schon am Vortag abliest, wird nicht erinnert."
+                        "MONTHLY" -> "Am 1. jedes Monats um 9 Uhr – bis alle Zähler abgelesen sind. Wer schon am Vortag abliest, wird nicht erinnert."
+                        else -> "Gilt für App, Web und E-Mail gemeinsam."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                Spacer(Modifier.height(8.dp))
+                val options = listOf("OFF" to "Aus", "WEEKLY" to "Wöchentlich", "MONTHLY" to "Monatlich")
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    options.forEachIndexed { i, (value, label) ->
+                        SegmentedButton(
+                            selected = r.interval == value,
+                            onClick = { changeReminder { app.api.updateReminder(ReminderSettingsIn(interval = value)) } },
+                            shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                        ) { Text(label) }
+                    }
+                }
+                if (r.interval != "OFF") {
+                    ListItem(
+                        headlineContent = { Text("Auch per E-Mail") },
+                        supportingContent = { Text(if (health?.mail == "smtp") "Eine E-Mail je Termin" else "Auf dem Server ist kein E-Mail-Versand eingerichtet") },
+                        trailingContent = {
+                            Switch(checked = r.email, onCheckedChange = { on -> changeReminder { app.api.updateReminder(ReminderSettingsIn(email = on)) } })
+                        },
+                    )
+                    ListItem(
+                        headlineContent = { Text("Benachrichtigung anheften") },
+                        supportingContent = { Text("Bleibt stehen, bis alles abgelesen ist. Sonst täglich neu, bis abgelesen.") },
+                        trailingContent = {
+                            Switch(checked = sticky, onCheckedChange = {
+                                sticky = it
+                                app.session.reminderSticky = it
+                                ReminderWorker.checkNow(app, force = true)
+                            })
+                        },
+                    )
+                    r.next?.let { next ->
+                        val skippingNext = r.skipUntil != null && r.skipUntil >= next
+                        ListItem(
+                            headlineContent = { Text("Nächste Erinnerung") },
+                            supportingContent = { Text(reminderDate(next) + if (skippingNext) " · wird übersprungen" else "") },
+                            trailingContent = {
+                                if (skippingNext || (r.skipped && !r.active)) {
+                                    TextButton(onClick = { changeReminder { app.api.skipReminder("none") } }) { Text("Doch erinnern") }
+                                } else {
+                                    TextButton(onClick = { changeReminder { app.api.skipReminder("next") } }) { Text("Überspringen") }
+                                }
+                            },
+                        )
+                    }
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 16.dp))

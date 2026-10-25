@@ -145,6 +145,21 @@ export interface Health {
   ocr: boolean;
   /** Name der Umgebung, z. B. "dev"; null = Produktion */
   env: string | null;
+  /** smtp = E-Mails werden verschickt; outbox = nur abgelegt (Testbetrieb) */
+  mail?: 'smtp' | 'outbox';
+}
+
+export type ReminderInterval = 'OFF' | 'WEEKLY' | 'MONTHLY';
+
+export interface ReminderState {
+  interval: ReminderInterval;
+  email: boolean;
+  skipUntil: string | null;
+  current: string | null;
+  next: string | null;
+  skipped: boolean;
+  due: { id: string; name: string }[];
+  active: boolean;
 }
 
 /** Foto im Eingang: hochgeladen, aber noch keine Ablesung daraus gespeichert */
