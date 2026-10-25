@@ -59,10 +59,12 @@ class MainActivity : ComponentActivity() {
                     val capture: CaptureViewModel = viewModel()
                     val target by openTarget.collectAsStateWithLifecycle()
                     LaunchedEffect(target) {
-                        if (target == "inbox") {
-                            nav.navigate("inbox") { launchSingleTop = true }
-                            openTarget.value = null
+                        when (target) {
+                            "inbox" -> nav.navigate("inbox") { launchSingleTop = true }
+                            // „Ablesen“ aus der Erinnerung: Kamera mit automatischer Zählererkennung
+                            "capture" -> nav.navigate("capture/auto") { launchSingleTop = true }
                         }
+                        openTarget.value = null
                     }
                     NavHost(nav, startDestination = "home") {
                         composable("home") {

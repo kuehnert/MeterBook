@@ -79,7 +79,17 @@ export interface BackupFile {
   format: typeof BACKUP_FORMAT;
   version: number;
   createdAt: string;
-  users: Array<{ email: string; name: string; role: string; passwordHash: string; createdAt: string; meters: MeterExport[] }>;
+  users: Array<{
+    email: string;
+    name: string;
+    role: string;
+    passwordHash: string;
+    createdAt: string;
+    /** seit 0.3.0 */
+    reminderInterval?: string;
+    reminderEmail?: boolean;
+    meters: MeterExport[];
+  }>;
 }
 
 export interface ImportSummary {
@@ -209,6 +219,8 @@ export class DataTransferService {
         name: u.name,
         role: u.role,
         passwordHash: u.passwordHash,
+        reminderInterval: u.reminderInterval,
+        reminderEmail: u.reminderEmail,
         createdAt: u.createdAt.toISOString(),
         meters: await this.exportMeters(u.id, files),
       });
@@ -275,7 +287,15 @@ export class DataTransferService {
         const pending: PendingPhoto[] = [];
         for (const u of file.users) {
           const user = await tx.user.create({
-            data: { email: u.email, name: u.name, role: u.role, passwordHash: u.passwordHash, createdAt: new Date(u.createdAt) },
+            data: {
+              email: u.email,
+              name: u.name,
+              role: u.role,
+              passwordHash: u.passwordHash,
+              createdAt: new Date(u.createdAt),
+              reminderInterval: u.reminderInterval ?? 'OFF',
+              reminderEmail: u.reminderEmail ?? true,
+            },
           });
           add(total, await this.mergeMeters(tx, user.id, u.meters ?? [], photos, pending));
         }

@@ -26,6 +26,29 @@ model User {
   meters       Meter[]
   photos       Photo[]
   refreshTokens RefreshToken[]
+  authTokens    AuthToken[]
+  /// Erinnerung ans Ablesen: OFF | WEEKLY (montags 9 Uhr) | MONTHLY (am 1. um 9 Uhr)
+  reminderInterval  String    @default("OFF")
+  /// Erinnerung zusätzlich per E-Mail (eine Mail je Erinnerung)
+  reminderEmail     Boolean   @default(true)
+  /// Erinnerungen bis einschließlich dieses Termins überspringen
+  reminderSkipUntil DateTime?
+  /// Termin, für den zuletzt eine Erinnerungs-Mail verschickt wurde
+  reminderMailedFor DateTime?
+}
+
+/// Einmal-Links per E-Mail: Einladung (Passwort festlegen) und Passwort zurücksetzen
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  /// INVITE | RESET
+  purpose   String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model RefreshToken {

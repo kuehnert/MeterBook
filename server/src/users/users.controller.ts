@@ -1,8 +1,8 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
-import { IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
-import { toPublicUser } from '../auth/auth.service';
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { AuthService, PENDING_PREFIX, toPublicUser } from '../auth/auth.service';
 import { AdminOnly, AuthUser, CurrentUser } from '../auth/decorators';
-import { hashPassword } from '../auth/password';
+import { hashPassword, newOpaqueToken } from '../auth/password';
 import { PrismaService } from '../prisma.service';
 
 class CreateUserDto {
@@ -11,12 +11,17 @@ class CreateUserDto {
   @IsString()
   @MinLength(1, { message: 'Bitte einen Namen eingeben' })
   name: string;
+  /** Leer lassen und `invite` setzen: die Person legt ihr Passwort selbst über die Einladung fest */
+  @IsOptional()
   @IsString()
   @MinLength(8, { message: 'Das Passwort braucht mindestens 8 Zeichen' })
-  password: string;
+  password?: string;
   @IsOptional()
   @IsIn(['ADMIN', 'USER'])
   role?: 'ADMIN' | 'USER';
+  @IsOptional()
+  @IsBoolean()
+  invite?: boolean;
 }
 
 class UpdateUserDto {
@@ -35,7 +40,10 @@ class UpdateUserDto {
 @AdminOnly()
 @Controller('users')
 export class UsersController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auth: AuthService,
+  ) {}
 
   @Get()
   async list() {
@@ -44,15 +52,33 @@ export class UsersController {
   }
 
   @Post()
-  async create(@Body() dto: CreateUserDto) {
+  async create(@Body() dto: CreateUserDto, @CurrentUser() me: AuthUser) {
     const email = dto.email.trim().toLowerCase();
+    if (!dto.password && !dto.invite) throw new BadRequestException('Bitte ein Passwort festlegen oder eine Einladung senden');
     if (await this.prisma.user.findUnique({ where: { email } })) {
       throw new BadRequestException('Diese E-Mail-Adresse ist schon vergeben');
     }
     const user = await this.prisma.user.create({
-      data: { email, name: dto.name, role: dto.role ?? 'USER', passwordHash: await hashPassword(dto.password) },
+      data: {
+        email,
+        name: dto.name,
+        role: dto.role ?? 'USER',
+        passwordHash: dto.password ? await hashPassword(dto.password) : PENDING_PREFIX + newOpaqueToken(),
+      },
     });
+    if (dto.invite) await this.auth.sendInvite(user.id, await this.nameOf(me.id));
     return toPublicUser(user);
+  }
+
+  /** Einladung (erneut) senden – auch als „Link zum Passwort festlegen“ für bestehende Konten. */
+  @Post(':id/invite')
+  @HttpCode(204)
+  async invite(@Param('id') id: string, @CurrentUser() me: AuthUser) {
+    await this.auth.sendInvite(id, await this.nameOf(me.id));
+  }
+
+  private async nameOf(id: string) {
+    return (await this.prisma.user.findUniqueOrThrow({ where: { id } })).name;
   }
 
   @Patch(':id')

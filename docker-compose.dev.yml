@@ -29,3 +29,10 @@ services:
       # Testdaten müssen nicht täglich gesichert werden
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-0}
       PHOTO_RETENTION_DAYS: ${PHOTO_RETENTION_DAYS:-30}
+      # Links in E-Mails zeigen auf die Testumgebung. Ohne SMTP_HOST landen Mails in ./data-dev/mail-outbox
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3001}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}

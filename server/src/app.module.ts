@@ -10,6 +10,7 @@ import { AuthGuard } from './auth/auth.guard';
 import { AuthService } from './auth/auth.service';
 import { config } from './config';
 import { HealthController } from './health.controller';
+import { MailService } from './mail/mail.service';
 import { MetersController } from './meters/meters.controller';
 import { MetersService } from './meters/meters.service';
 import { OcrService } from './photos/ocr.service';
@@ -19,6 +20,8 @@ import { PhotosService } from './photos/photos.service';
 import { PrismaService } from './prisma.service';
 import { ReadingsController } from './readings/readings.controller';
 import { ReadingsService } from './readings/readings.service';
+import { RemindersController } from './reminders/reminders.controller';
+import { RemindersService } from './reminders/reminders.service';
 import { ReportsController } from './reports/reports.controller';
 import { StatsController } from './stats/stats.controller';
 import { StatsService } from './stats/stats.service';
@@ -43,6 +46,7 @@ import { UsersController } from './users/users.controller';
     TakeoutController,
     AdminBackupController,
     ScriptBackupController,
+    RemindersController,
   ],
   providers: [
     PrismaService,
@@ -55,6 +59,8 @@ import { UsersController } from './users/users.controller';
     PhotoRetentionService,
     DataTransferService,
     BackupService,
+    MailService,
+    RemindersService,
     { provide: APP_GUARD, useClass: AuthGuard },
   ],
 })

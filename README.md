@@ -112,6 +112,21 @@ Jeder Nutzer kann unter **Einstellungen → Meine Daten** alle eigenen Daten als
 
 **Testen ohne API-Schlüssel:** `OCR_FAKE=1` simuliert die Erkennung (nur für die Entwicklung, nie in der Produktion).
 
+## E-Mail und Erinnerungen
+
+**Einrichten:** In der `.env` `PUBLIC_URL` (Adresse der Web-App, für die Links), `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` und `MAIL_FROM` setzen – bei SMTP2Go `mail.smtp2go.com`, Port 587 (oder 2525), dazu einen SMTP-Benutzer aus dem SMTP2Go-Konto; die Absender-Domain muss dort bestätigt sein. Ohne `SMTP_HOST` verschickt MeterBook nichts, sondern legt jede Mail als `.eml`-Datei unter `/data/mail-outbox` ab – praktisch für die Testumgebung.
+
+**Einladung:** Unter **Nutzer → Nutzer anlegen** mit „Einladung per E-Mail senden“ bekommt die Person einen Link (7 Tage gültig), legt ihr Passwort selbst fest und ist direkt angemeldet. Über das Brief-Symbol in der Nutzerliste lässt sich die Einladung – oder für bestehende Konten ein Link zum Passwort festlegen – erneut senden. Eine offene Registrierung gibt es bewusst nicht.
+
+**Passwort vergessen:** auf der Anmeldeseite (Web und App). Der Link gilt eine Stunde; danach sind alle anderen Sitzungen des Kontos abgemeldet.
+
+**Erinnerungen** (je Nutzer unter **Einstellungen**, gilt für Web, App und E-Mail gemeinsam):
+- *Wöchentlich* jeden Montag um 9 Uhr, *monatlich* am 1. um 9 Uhr (Zeitzone `TZ`).
+- Fällig ist ein Zähler, der seit dem Termin noch nicht abgelesen wurde; Ablesungen vom Vortag zählen mit.
+- Per E-Mail kommt genau eine Mail je Termin mit allen fälligen Zählern (abschaltbar). War der Server um 9 Uhr aus, wird sie am selben Tag nachgeholt.
+- Die Android-App zeigt die Erinnerung, bis alles abgelesen ist – angeheftet oder, falls weggewischt, täglich neu. Aus der Benachrichtigung heraus: **Ablesen** oder **Überspringen**.
+- **Überspringen** gilt für den aktuellen oder schon vorab für den nächsten Termin (z. B. im Urlaub). Mit dem nächsten Termin ist der alte erledigt – Erinnerungen stapeln sich nie.
+
 ## Datenbank
 
 MeterBook nutzt **SQLite**: eine Datei, kein zusätzlicher Dienst. Für einige Haushalte mit wöchentlichen Ablesungen (einige tausend Zeilen im Jahr) ist das schneller als jeder Datenbankserver – Postgres brächte hier keinen spürbaren Gewinn, aber einen zweiten Container und aufwendigere Sicherungen. Sollte sich das ändern, ist der Umstieg über das Sicherungsformat möglich: Sicherung erstellen, Server mit Postgres aufsetzen, Sicherung einspielen.
