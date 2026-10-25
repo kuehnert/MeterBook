@@ -115,10 +115,14 @@ model Photo {
   takenAt   DateTime
   width     Int?
   height    Int?
-  /// NONE | DONE | FAILED
+  /// NONE | PENDING (Erkennung läuft im Hintergrund) | DONE | FAILED
   ocrStatus String    @default("NONE")
   /// JSON mit dem Ergebnis der Erkennung
   ocrResult String?
+  /// Auf den Ziffernbereich zugeschnitten (Boxen in ocrResult beziehen sich dann auf den Ausschnitt)
+  cropped   Boolean   @default(false)
+  /// Nutzer wollte das ganze Foto behalten – auch nachträglich nicht zuschneiden
+  keepFull  Boolean   @default(false)
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   meter     Meter?    @relation(fields: [meterId], references: [id], onDelete: Cascade)

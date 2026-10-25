@@ -2,9 +2,11 @@ package net.mister_k.meterbook
 
 import android.app.Application
 import net.mister_k.meterbook.data.Api
+import net.mister_k.meterbook.data.PhotoInbox
 import net.mister_k.meterbook.data.Repository
 import net.mister_k.meterbook.data.Session
 import net.mister_k.meterbook.data.UploadQueue
+import net.mister_k.meterbook.work.PhotoWorker
 import net.mister_k.meterbook.work.ReminderWorker
 import net.mister_k.meterbook.work.SyncWorker
 
@@ -17,6 +19,8 @@ class MeterBookApp : Application() {
         private set
     lateinit var repo: Repository
         private set
+    lateinit var photoInbox: PhotoInbox
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -24,8 +28,11 @@ class MeterBookApp : Application() {
         api = Api(session)
         queue = UploadQueue(this, api)
         repo = Repository(this, api)
+        photoInbox = PhotoInbox(this, api)
+        PhotoWorker.createChannel(this)
         ReminderWorker.createChannel(this)
         ReminderWorker.schedule(this)
         if (queue.items.value.isNotEmpty()) SyncWorker.enqueue(this)
+        if (photoInbox.local.value.isNotEmpty()) PhotoWorker.enqueue(this)
     }
 }

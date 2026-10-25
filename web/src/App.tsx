@@ -8,6 +8,7 @@ import {
   IconPlus,
   IconSettings,
   IconCamera,
+  IconInbox,
   IconShieldCheck,
   IconUsers,
 } from '@tabler/icons-react';
@@ -26,6 +27,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { UsersPage } from './pages/UsersPage';
 import { BackupPage } from './pages/BackupPage';
 import { CapturePage } from './pages/CapturePage';
+import { InboxPage, useInbox } from './pages/InboxPage';
 import { Badge } from '@mantine/core';
 import type { Health } from './lib/types';
 
@@ -51,7 +53,10 @@ function Shell({ user }: { user: User }) {
   const health = useQuery({ queryKey: ['health'], queryFn: () => get<Health>('/health'), staleTime: Infinity });
   useEffect(close, [location.pathname, close]);
 
-  const link = (to: string, label: string, icon: React.ReactNode, exact = false) => {
+  const inbox = useInbox();
+  const inboxCount = inbox.data?.length ?? 0;
+
+  const link = (to: string, label: string, icon: React.ReactNode, exact = false, badge?: number) => {
     const active = exact ? location.pathname === to : location.pathname.startsWith(to);
     return (
       <NavLink
@@ -59,6 +64,7 @@ function Shell({ user }: { user: User }) {
         to={to}
         label={label}
         leftSection={icon}
+        rightSection={badge ? <Badge size="sm" circle>{badge}</Badge> : undefined}
         active={active}
         classNames={{ label: active ? 'nav-link-active' : undefined }}
       />
@@ -90,6 +96,7 @@ function Shell({ user }: { user: User }) {
         <AppShell.Section grow component={ScrollArea}>
           {link('/', 'Übersicht', <IconDashboard size={18} />, true)}
           {link('/ablesen', 'Ablesen', <IconCamera size={18} />, true)}
+          {link('/eingang', 'Eingang', <IconInbox size={18} />, true, inboxCount)}
           <Text size="xs" fw={600} c="dimmed" tt="uppercase" px="sm" pt="md" pb={4}>
             Zähler
           </Text>
@@ -113,6 +120,7 @@ function Shell({ user }: { user: User }) {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/ablesen" element={<CapturePage />} />
+          <Route path="/eingang" element={<InboxPage />} />
           <Route path="/meters/new" element={<NewMeterPage />} />
           <Route path="/meters/:id/*" element={<MeterPage />} />
           <Route path="/reports" element={<ReportsPage />} />

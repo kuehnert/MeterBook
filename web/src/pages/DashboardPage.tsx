@@ -1,5 +1,6 @@
-import { ActionIcon, Affix, Badge, Button, Card, Center, Divider, Group, Loader, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
-import { IconCamera, IconPlus } from '@tabler/icons-react';
+import { ActionIcon, Affix, Alert, Badge, Button, Card, Center, Divider, Group, Loader, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import { IconCamera, IconInbox, IconPlus } from '@tabler/icons-react';
+import { useInbox } from './InboxPage';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -12,6 +13,7 @@ import type { Meter, Overview } from '../lib/types';
 export function DashboardPage() {
   const q = useQuery({ queryKey: ['overview'], queryFn: () => get<Overview[]>('/stats/overview') });
   const [capture, setCapture] = useState<Meter | null>(null);
+  const inboxCount = useInbox().data?.length ?? 0;
 
   if (q.isLoading) return <Center h={200}><Loader /></Center>;
   const items = q.data ?? [];
@@ -21,6 +23,18 @@ export function DashboardPage() {
 
   return (
     <Stack>
+      {inboxCount > 0 && (
+        <Alert color="blue" variant="light" icon={<IconInbox size={18} />}>
+          <Group justify="space-between">
+            <Text size="sm">
+              {inboxCount === 1 ? '1 Foto wartet' : `${inboxCount} Fotos warten`} im Eingang auf Prüfung.
+            </Text>
+            <Button size="xs" component={Link} to="/eingang">
+              Zum Eingang
+            </Button>
+          </Group>
+        </Alert>
+      )}
       <Group justify="space-between" align="flex-end">
         <div>
           <Title order={2}>Übersicht</Title>

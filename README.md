@@ -104,7 +104,13 @@ Jeder Nutzer kann unter **Einstellungen → Meine Daten** alle eigenen Daten als
 
 ## Fotos
 
-Fotos werden nach `PHOTO_RETENTION_DAYS` Tagen gelöscht (Standard 400, `0` = nie); die Ablesungen mit Wert und Erkennungsergebnis bleiben. 400 Tage decken eine ganze Abrechnungsperiode plus die Zeit bis zur Jahresabrechnung ab – falls man einen Stand gegenüber dem Versorger belegen muss. Fotos, die keinem Zähler zugeordnet werden konnten, verschwinden nach einem Tag.
+**Eingang:** Fotos landen sofort im Eingang, die Erkennung läuft auf dem Server im Hintergrund – man kann mehrere Zähler direkt nacheinander fotografieren. Die Android-App lädt Fotos auch später hoch, wenn gerade kein Netz da ist, und meldet per Benachrichtigung, sobald Ergebnisse zum Prüfen bereitliegen. Im Eingang (App und Web) prüft man ein Foto nach dem anderen und speichert die Ablesung oder verwirft das Foto.
+
+**Zuschnitt:** Beim Speichern wird das Foto auf den Bereich mit den Ziffern (plus Rand) zugeschnitten, der Rest des Bildes wird verworfen – die Vorschau beim Prüfen zeigt genau diesen Ausschnitt. Mit „Ganzes Foto behalten“ bleibt es vollständig. Ältere, bestätigte Fotos lassen sich unter **Sicherung → Fotos zuschneiden** oder per `docker exec meterbook node dist/cli.js photos-crop` nachträglich zuschneiden (vorher wird automatisch gesichert); Fotos ohne bekannte Ziffernlage bleiben unverändert.
+
+**Aufbewahrung:** Fotos werden nach `PHOTO_RETENTION_DAYS` Tagen gelöscht (Standard 400, `0` = nie); die Ablesungen mit Wert und Erkennungsergebnis bleiben. 400 Tage decken eine ganze Abrechnungsperiode plus die Zeit bis zur Jahresabrechnung ab. Fotos im Eingang, die nie einem Zähler zugeordnet wurden, verschwinden nach 30 Tagen.
+
+**Testen ohne API-Schlüssel:** `OCR_FAKE=1` simuliert die Erkennung (nur für die Entwicklung, nie in der Produktion).
 
 ## Datenbank
 

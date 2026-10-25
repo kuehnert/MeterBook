@@ -1,5 +1,6 @@
 import {
   Alert,
+  Checkbox,
   Badge,
   Button,
   Group,
@@ -19,7 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { get, post } from '../lib/api';
 import { num } from '../lib/format';
 import type { Health, Meter, ReadingGroup, RegisterWarnings, UploadResult } from '../lib/types';
-import { AuthImage } from './AuthImage';
+import { PhotoPreview, usePhoto } from './PhotoReview';
 import { DateTimeField } from './DateFields';
 import { DecimalInput } from './DecimalInput';
 
@@ -42,6 +43,8 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
   const [values, setValues] = useState<Record<string, number | ''>>({});
   const [note, setNote] = useState('');
   const [photo, setPhoto] = useState<{ id: string; preview?: string } | null>(null);
+  /** Foto nicht auf die Ziffern zuschneiden */
+  const [keepFull, setKeepFull] = useState(false);
   const [upload, setUpload] = useState<UploadResult | null>(null);
   const [uploading, setUploading] = useState(false);
   const [warnings, setWarnings] = useState<RegisterWarnings[]>([]);
@@ -55,6 +58,7 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
     setValues(Object.fromEntries(meter.registers.map((r) => [r.id, edit?.values[r.id]?.value ?? ''])));
     setNote(edit?.note ?? '');
     setPhoto(edit?.photoId ? { id: edit.photoId } : null);
+    setKeepFull(false);
     setUpload(null);
     setWarnings([]);
     setError(null);
@@ -66,6 +70,7 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
       originalReadAt: edit?.readAt,
       photoId: photo?.id,
       note: note || undefined,
+      keepFullPhoto: keepFull || undefined,
       values: meter.registers
         .filter((r) => values[r.id] !== '' && values[r.id] !== undefined)
         .map((r) => {
@@ -79,7 +84,7 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
           };
         }),
     }),
-    [readAt, edit, photo, note, values, meter, upload],
+    [readAt, edit, photo, note, values, meter, upload, keepFull],
   );
 
   // Plausibilität live prüfen, sobald Werte vollständig sind.
@@ -146,6 +151,8 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
     }
   };
 
+  // Vom Server laden: zeigt bei erkannten Ziffern den Ausschnitt, der beim Speichern übrig bleibt
+  const shown = usePhoto(photo?.id ?? null, upload?.ocr ?? null, false);
   const ocrFor = (id: string) => upload?.ocr?.registers.find((r) => r.registerId === id);
   const warningsFor = (id: string) => warnings.find((w) => w.registerId === id)?.warnings ?? [];
 
@@ -154,10 +161,18 @@ export function ReadingModal({ meter, opened, onClose, edit }: Props) {
       <Stack>
         {photo ? (
           <Stack gap="xs">
-            {photo.preview ? (
+            {shown ? (
+              <PhotoPreview url={shown.url} crop={keepFull ? null : shown.crop} />
+            ) : photo.preview ? (
               <Image src={photo.preview} radius="md" mah={260} fit="contain" />
-            ) : (
-              <AuthImage photoId={photo.id} mah={260} />
+            ) : null}
+            {shown?.crop && (
+              <Checkbox
+                label="Ganzes Foto behalten"
+                description="Sonst wird nur der Ausschnitt mit den Ziffern gespeichert."
+                checked={keepFull}
+                onChange={(e) => setKeepFull(e.currentTarget.checked)}
+              />
             )}
             <Group justify="space-between">
               {upload?.ocr ? (

@@ -57,20 +57,32 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.mister_k.meterbook.MeterBookApp
 import java.io.File
+import java.time.Instant
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import net.mister_k.meterbook.data.prepareForUpload
+import net.mister_k.meterbook.data.saveToGallery
+import net.mister_k.meterbook.work.PhotoWorker
 
 /**
  * Kamera mit Ausrichtungsrahmen. Ein Foto pro Zähler – bei HT/NT beide Zählwerke ins Bild.
- * meterId = null: Der Server erkennt, welcher Zähler fotografiert wurde.
+ * Jedes Foto geht sofort in den Eingang und wird im Hintergrund erkannt; man kann direkt
+ * weiterfotografieren. meterId = null: Der Server erkennt, welcher Zähler es ist.
  */
 @Composable
 fun CaptureScreen(
     app: MeterBookApp,
     meterId: String?,
     viewModel: CaptureViewModel,
-    onCaptured: () -> Unit,
+    onDone: () -> Unit,
     onManual: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    var taken by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
     val meter = meterId?.let { app.repo.meter(it) }
@@ -157,8 +169,16 @@ fun CaptureScreen(
                             object : ImageCapture.OnImageSavedCallback {
                                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                                     busy = false
-                                    viewModel.start(meterId, file)
-                                    onCaptured()
+                                    taken++
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            if (app.session.saveToGallery) runCatching { saveToGallery(app, file, meter?.name) }
+                                            val prepared = prepareForUpload(file, File(context.cacheDir, "prep_${System.currentTimeMillis()}.jpg"))
+                                            if (prepared != file) file.delete()
+                                            app.photoInbox.add(prepared, meterId, Instant.now().toString())
+                                        }
+                                        PhotoWorker.enqueue(app)
+                                    }
                                 }
 
                                 override fun onError(e: ImageCaptureException) {
@@ -176,9 +196,19 @@ fun CaptureScreen(
                     if (busy) CircularProgressIndicator(Modifier.size(28.dp)) else Box(Modifier.size(60.dp).background(Color.White, CircleShape))
                 }
             }
-            TextButton(onClick = { viewModel.start(meterId, null); onManual() }) {
-                Icon(Icons.Outlined.Keyboard, null, tint = Color.White)
-                Text("  Ohne Foto eingeben", color = Color.White)
+            if (taken > 0) {
+                Text(
+                  if (taken == 1) "1 Foto im Eingang – wird im Hintergrund erkannt" else "$taken Fotos im Eingang – werden im Hintergrund erkannt",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                Button(onClick = onDone) { Text("Fertig – zum Eingang") }
+            } else {
+                TextButton(onClick = { viewModel.startManual(meterId); onManual() }) {
+                    Icon(Icons.Outlined.Keyboard, null, tint = Color.White)
+                    Text("  Ohne Foto eingeben", color = Color.White)
+                }
             }
         }
     }

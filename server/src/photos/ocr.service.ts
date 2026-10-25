@@ -124,22 +124,52 @@ function clampBox(b: number[] | null | undefined): Box | null {
   return [x, y, Math.min(w, 1 - x), Math.min(h, 1 - y)];
 }
 
+/**
+ * Simulierte Erkennung für Tests ohne API-Schlüssel (OCR_FAKE=1): nimmt den ersten Kandidaten,
+ * schlägt den letzten Stand plus 1 vor und legt die Ziffern in die Bildmitte.
+ */
+async function fakeRead(candidates: OcrMeterInput[]): Promise<OcrResult> {
+  await new Promise((r) => setTimeout(r, 3000));
+  const m = candidates[0];
+  return {
+    model: 'fake',
+    meterId: m.id,
+    meterConfidence: 0.9,
+    registers: m.registers.map((r, i) => ({
+      registerId: r.id,
+      value: truncate((r.lastValue ?? 1000) + 1, r.decimals),
+      confidence: i === 0 ? 0.95 : 0.4,
+      digits: String((r.lastValue ?? 1000) + 1),
+      box: [0.3, 0.3 + i * 0.12, 0.4, 0.08],
+    })),
+    serialNumberSeen: m.serialNumber,
+    serialNumberMatches: true,
+    issues: ['Testmodus: simulierte Erkennung'],
+  };
+}
+
 @Injectable()
 export class OcrService {
   private readonly log = new Logger(OcrService.name);
   private readonly client = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey }) : null;
 
   get enabled() {
-    return this.client !== null;
+    return this.client !== null || config.ocrFake;
   }
 
   /**
    * Liest ein Foto. Mit einem Kandidaten wird nur dieser Zähler abgelesen; mit mehreren
    * bestimmt die Erkennung zusätzlich, welcher Zähler auf dem Foto ist.
    */
+  private fake(candidates: OcrMeterInput[]) {
+    this.log.warn('Testmodus OCR_FAKE: simulierte Erkennung');
+    return fakeRead(candidates);
+  }
+
   async read(image: Buffer, candidates: OcrMeterInput[]): Promise<OcrResult> {
-    if (!this.client) throw new Error('Keine automatische Erkennung konfiguriert (ANTHROPIC_API_KEY fehlt)');
     if (candidates.length === 0) throw new Error('Keine Zähler angelegt');
+    if (!this.client && config.ocrFake) return this.fake(candidates);
+    if (!this.client) throw new Error('Keine automatische Erkennung konfiguriert (ANTHROPIC_API_KEY fehlt)');
 
     const intro =
       candidates.length === 1

@@ -136,6 +136,7 @@ data class UploadResult(
     val photoId: String,
     val meterId: String? = null,
     val takenAt: String,
+    val ocrStatus: String = "NONE",
     val ocr: OcrResult? = null,
     val ocrError: String? = null,
     val warnings: List<RegisterWarnings> = emptyList(),
@@ -156,6 +157,23 @@ data class ReadingGroupIn(
     val source: String? = null,
     val note: String? = null,
     val values: List<ReadingValueIn>,
+    /** Foto nicht auf die Ziffern zuschneiden */
+    val keepFullPhoto: Boolean? = null,
+)
+
+/** Foto im Eingang auf dem Server: hochgeladen, aber noch keine Ablesung gespeichert */
+@Serializable
+data class InboxItem(
+    val photoId: String,
+    val meterId: String? = null,
+    val takenAt: String,
+    val createdAt: String,
+    /** NONE | PENDING (wird erkannt) | DONE | FAILED */
+    val ocrStatus: String,
+    val ocr: OcrResult? = null,
+    val ocrError: String? = null,
+    /** schon auf die Ziffern zugeschnitten */
+    val cropped: Boolean = false,
 )
 
 @Serializable

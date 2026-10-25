@@ -6,7 +6,7 @@ import { PhotosService } from '../photos/photos.service';
 import { buildArchive, readArchive } from './archive';
 import { DataTransferService, ImportSummary, PendingPhoto, PhotoRef } from './data-transfer.service';
 
-export type BackupKind = 'auto' | 'manuell' | 'skript' | 'vor-wiederherstellung';
+export type BackupKind = 'auto' | 'manuell' | 'skript' | 'vor-wiederherstellung' | 'vor-zuschnitt';
 
 export interface BackupEntry {
   name: string;

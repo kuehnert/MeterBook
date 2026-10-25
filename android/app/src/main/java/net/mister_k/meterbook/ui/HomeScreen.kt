@@ -59,7 +59,10 @@ fun HomeScreen(
     onCaptureAuto: () -> Unit,
     onOpenMeter: (String) -> Unit,
     onSettings: () -> Unit,
+    onOpenInbox: () -> Unit,
 ) {
+    val localPhotos by app.photoInbox.local.collectAsStateWithLifecycle()
+    val serverPhotos by app.photoInbox.server.collectAsStateWithLifecycle()
     var items by remember { mutableStateOf(app.repo.cachedOverview() ?: emptyList()) }
     var env by remember { mutableStateOf<String?>(null) }
     var offline by remember { mutableStateOf(false) }
@@ -87,6 +90,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         load()
         env = runCatching { app.api.health().env }.getOrNull()
+        runCatching { app.photoInbox.refresh() }
     }
 
     Scaffold(
@@ -121,6 +125,16 @@ fun HomeScreen(
             ) {
                 if (offline) {
                     item { Banner(Icons.Outlined.CloudOff, "Offline – zuletzt geladene Daten. Ablesungen werden später gesendet.") }
+                }
+                val inboxCount = localPhotos.size + serverPhotos.size
+                if (inboxCount > 0) {
+                    item {
+                        InboxChip(
+                            count = inboxCount,
+                            pending = localPhotos.size + serverPhotos.count { it.ocrStatus == "PENDING" },
+                            onClick = onOpenInbox,
+                        )
+                    }
                 }
                 if (pending.isNotEmpty()) {
                     item {

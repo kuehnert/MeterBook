@@ -43,11 +43,20 @@ class UploadQueue(private val context: Context, private val api: Api) {
         _items.value = load()
     }
 
-    fun add(meterId: String, meterName: String, readAt: String, values: List<ReadingValueIn>, note: String?, photo: File?) {
+    fun add(
+        meterId: String,
+        meterName: String,
+        readAt: String,
+        values: List<ReadingValueIn>,
+        note: String?,
+        photo: File?,
+        /** Foto liegt schon auf dem Server (aus dem Eingang) */
+        photoId: String? = null,
+    ) {
         val id = UUID.randomUUID().toString()
         val dir = File(root, id).apply { mkdirs() }
-        photo?.copyTo(File(dir, "photo.jpg"), overwrite = true)
-        write(dir, PendingReading(id, meterId, meterName, readAt, note, values))
+        if (photoId == null) photo?.copyTo(File(dir, "photo.jpg"), overwrite = true)
+        write(dir, PendingReading(id, meterId, meterName, readAt, note, values, photoId))
         refresh()
     }
 

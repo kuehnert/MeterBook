@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsIn,
   IsNumber,
@@ -49,6 +50,10 @@ export class ReadingGroupDto {
   @IsOptional()
   @IsString()
   note?: string;
+  /** Foto nicht auf die Ziffern zuschneiden, sondern vollständig behalten */
+  @IsOptional()
+  @IsBoolean()
+  keepFullPhoto?: boolean;
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
@@ -127,8 +132,10 @@ export class ReadingsService {
     const regIds = meter.registers.map((r) => r.id);
     if (dto.values.some((v) => !regIds.includes(v.registerId))) throw new BadRequestException('Unbekanntes Zählwerk');
     if (dto.photoId) {
-      const photo = await this.prisma.photo.findFirst({ where: { id: dto.photoId, meterId } });
-      if (!photo) throw new BadRequestException('Foto gehört nicht zu diesem Zähler');
+      const photo = await this.prisma.photo.findFirst({ where: { id: dto.photoId, userId } });
+      if (!photo || (photo.meterId && photo.meterId !== meterId)) throw new BadRequestException('Foto gehört nicht zu diesem Zähler');
+      // Foto aus dem Eingang, das keinem Zähler zugeordnet werden konnte: jetzt zuordnen
+      if (!photo.meterId) await this.prisma.photo.update({ where: { id: photo.id }, data: { meterId } });
     }
     const readAt = new Date(dto.readAt);
     if (readAt.getTime() > Date.now() + 10 * 60_000) throw new BadRequestException('Ablesung liegt in der Zukunft');

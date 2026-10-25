@@ -18,7 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
@@ -37,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -63,7 +64,6 @@ fun ReviewScreen(
     app: MeterBookApp,
     viewModel: CaptureViewModel,
     onDone: () -> Unit,
-    onRetake: (String?) -> Unit,
     onBack: () -> Unit,
 ) {
     val s by viewModel.state.collectAsStateWithLifecycle()
@@ -86,9 +86,19 @@ fun ReviewScreen(
             Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            s.photo?.let { file ->
-                val boxes = s.ocr?.registers?.mapNotNull { it.box?.takeIf { b -> b.size == 4 } }.orEmpty()
-                DigitsPreview(file, boxes)
+            // Ausschnitt = was beim Speichern übrig bleibt; schon zugeschnittene Fotos ganz zeigen
+            val boxes = if (s.cropped) emptyList() else s.ocr?.registers?.mapNotNull { it.box?.takeIf { b -> b.size == 4 } }.orEmpty()
+            s.photo?.let { file -> DigitsPreview(file, if (s.keepFull) emptyList() else boxes) }
+            if (s.loadingPhoto) LinearProgressIndicator(Modifier.fillMaxWidth())
+            if (s.photo != null && boxes.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = s.keepFull, onCheckedChange = viewModel::setKeepFull)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Ganzes Foto behalten", style = MaterialTheme.typography.bodyMedium)
+                        Text("Sonst wird nur der Ausschnitt mit den Ziffern gespeichert.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
             if (s.uploading) {
                 Column {
@@ -152,11 +162,14 @@ fun ReviewScreen(
             s.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (s.photo != null) {
-                    OutlinedButton(onClick = { val id = s.meterId.takeIf { !s.autoAssigned }; viewModel.discard(); onRetake(id) }, Modifier.weight(1f).height(52.dp)) {
-                        Icon(Icons.Outlined.CameraAlt, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Neu")
+                if (s.photoId != null) {
+                    OutlinedButton(
+                        onClick = { scope.launch { if (viewModel.discardPhoto()) { Toast.makeText(context, "Foto verworfen", Toast.LENGTH_SHORT).show(); onDone() } } },
+                        modifier = Modifier.weight(1.3f).height(52.dp),
+                    ) {
+                        Icon(Icons.Outlined.Delete, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Verwerfen", maxLines = 1, softWrap = false)
                     }
                 }
                 Button(

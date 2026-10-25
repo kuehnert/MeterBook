@@ -24,6 +24,8 @@ import net.mister_k.meterbook.MainActivity
 import net.mister_k.meterbook.MeterBookApp
 import net.mister_k.meterbook.R
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.delay
+import net.mister_k.meterbook.data.InboxItem
 
 /** Lädt offline erfasste Ablesungen hoch, sobald Netz da ist. */
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -90,6 +92,80 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork("reminder", ExistingPeriodicWorkPolicy.KEEP, req)
+        }
+    }
+}
+
+/**
+ * Lädt Fotos aus dem Eingang hoch, sobald Netz da ist, wartet auf die Erkennung auf dem Server
+ * und meldet per Benachrichtigung, wenn Fotos zum Prüfen bereitliegen.
+ */
+class PhotoWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val app = applicationContext as MeterBookApp
+        if (app.session.user.value == null) return Result.success()
+        val (uploaded, reachable) = app.photoInbox.upload()
+        if (!reachable) return Result.retry()
+
+        // Auf die Erkennung warten (meist 10–30 s je Foto), höchstens einige Minuten
+        val watch = uploaded.toMutableSet()
+        val ready = mutableListOf<InboxItem>()
+        val deadline = System.currentTimeMillis() + 5 * 60_000
+        while (watch.isNotEmpty() && System.currentTimeMillis() < deadline) {
+            delay(4_000)
+            val items = try {
+                app.photoInbox.refresh()
+            } catch (_: Exception) {
+                break
+            }
+            for (it in items.filter { i -> i.photoId in watch && i.ocrStatus != "PENDING" }) {
+                ready += it
+                watch -= it.photoId
+            }
+            // Foto inzwischen bearbeitet oder verworfen
+            watch.retainAll(items.map { it.photoId }.toSet())
+        }
+        if (ready.isNotEmpty()) notifyReady(app, ready)
+        return Result.success()
+    }
+
+    private fun notifyReady(app: MeterBookApp, ready: List<InboxItem>) {
+        val context = applicationContext
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val names = ready.map { item -> app.repo.meter(item.meterId ?: "")?.name ?: "Zähler unbekannt" }.distinct()
+        val total = app.photoInbox.server.value.count { it.ocrStatus != "PENDING" }
+        val intent = PendingIntent.getActivity(
+            context, 2,
+            Intent(context, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_OPEN, "inbox")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val n = NotificationCompat.Builder(context, CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(if (total == 1) "1 Foto zum Prüfen" else "$total Fotos zum Prüfen")
+            .setContentText("Erkannt: ${names.joinToString(", ")}")
+            .setContentIntent(intent)
+            .setAutoCancel(true)
+            .build()
+        NotificationManagerCompat.from(context).notify(2, n)
+    }
+
+    companion object {
+        const val CHANNEL = "inbox"
+
+        fun createChannel(context: Context) {
+            val nm = context.getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(NotificationChannel(CHANNEL, "Fotos zum Prüfen", NotificationManager.IMPORTANCE_HIGH))
+        }
+
+        fun enqueue(context: Context) {
+            val req = OneTimeWorkRequestBuilder<PhotoWorker>()
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .build()
+            // Läuft schon einer, hängt der neue sich an – so geht kein Foto verloren
+            WorkManager.getInstance(context).enqueueUniqueWork("photos", ExistingWorkPolicy.APPEND_OR_REPLACE, req)
         }
     }
 }
