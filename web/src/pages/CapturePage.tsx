@@ -1,230 +1,97 @@
-import { Alert, Badge, Button, Card, Center, Group, Image, Loader, Modal, Select, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core';
-import { IconAlertTriangle, IconCamera, IconCheck, IconKeyboard, IconPhoto, IconSparkles } from '@tabler/icons-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import dayjs from 'dayjs';
+import { Alert, Badge, Button, Group, Image, Loader, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core';
+import { IconCamera, IconCheck, IconInbox, IconKeyboard, IconPhoto } from '@tabler/icons-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
-import { DateTimeField } from '../components/DateFields';
-import { DecimalInput } from '../components/DecimalInput';
-import { ICON_COLOR, MediumIcon, iconOf } from '../components/MediumIcon';
-import { get, post } from '../lib/api';
-import { num } from '../lib/format';
-import { PreparedImage, cropToBoxes, prepareImage } from '../lib/image';
-import type { Box, Meter, RegisterWarnings, UploadResult } from '../lib/types';
+import { Link, useNavigate } from 'react-router';
+import { PhotoReview } from '../components/PhotoReview';
+import { post } from '../lib/api';
+import { prepareImage } from '../lib/image';
+import type { UploadResult } from '../lib/types';
 
-const FORMAT = 'YYYY-MM-DD HH:mm:ss';
-
-type Step = 'start' | 'working' | 'review' | 'done';
+interface Sent {
+  key: string;
+  url: string;
+  state: 'uploading' | 'done' | 'error';
+  error?: string;
+}
 
 /**
- * Ablesen auf dem Handy: Foto machen → der Server erkennt Zähler und Stand → prüfen → speichern.
- * Gedacht für die Web-App auf dem Home-Bildschirm (z. B. iPhone).
+ * Ablesen auf dem Handy: Fotos nacheinander machen – sie landen im Eingang und werden dort im
+ * Hintergrund erkannt. Geprüft und gespeichert wird im Eingang, ein Foto nach dem anderen.
  */
 export function CapturePage() {
   const qc = useQueryClient();
-  const meters = useQuery({ queryKey: ['meters'], queryFn: () => get<Meter[]>('/meters') });
+  const navigate = useNavigate();
   const cameraInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
+  const [sent, setSent] = useState<Sent[]>([]);
+  const [manual, setManual] = useState(false);
+  const [savedName, setSavedName] = useState<string | null>(null);
 
-  const [step, setStep] = useState<Step>('start');
-  const [status, setStatus] = useState('');
-  const [image, setImage] = useState<PreparedImage | null>(null);
-  const [crop, setCrop] = useState<string | null>(null);
-  const [upload, setUpload] = useState<UploadResult | null>(null);
-  const [meterId, setMeterId] = useState<string | null>(null);
-  const [autoAssigned, setAutoAssigned] = useState(false);
-  const [values, setValues] = useState<Record<string, number | ''>>({});
-  const [readAt, setReadAt] = useState(dayjs().format(FORMAT));
-  const [note, setNote] = useState('');
-  const [warnings, setWarnings] = useState<RegisterWarnings[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [zoom, setZoom] = useState(false);
-  const [savedName, setSavedName] = useState('');
+  useEffect(() => () => sent.forEach((s) => URL.revokeObjectURL(s.url)), [sent]);
 
-  const meter = meters.data?.find((m) => m.id === meterId) ?? null;
+  const update = (key: string, patch: Partial<Sent>) => setSent((list) => list.map((s) => (s.key === key ? { ...s, ...patch } : s)));
 
-  useEffect(() => () => {
-    if (image) URL.revokeObjectURL(image.url);
-  }, [image]);
-
-  const reset = () => {
-    setStep('start');
-    setImage(null);
-    setCrop(null);
-    setUpload(null);
-    setMeterId(null);
-    setAutoAssigned(false);
-    setValues({});
-    setReadAt(dayjs().format(FORMAT));
-    setNote('');
-    setWarnings([]);
-    setError(null);
-  };
-
-  /** Ergebnis der Erkennung übernehmen: Zähler, Werte (immer vorbefüllt), Ausschnitt. */
-  const apply = (res: UploadResult, img: PreparedImage | null, auto: boolean) => {
-    setUpload(res);
-    setMeterId(res.meterId);
-    setAutoAssigned(auto && !!res.meterId);
-    setReadAt(dayjs(res.takenAt).format(FORMAT));
-    const v: Record<string, number | ''> = {};
-    for (const r of res.ocr?.registers ?? []) if (r.value !== null) v[r.registerId] = r.value;
-    setValues(v);
-    setWarnings(res.warnings);
-    const boxes = (res.ocr?.registers ?? []).map((r) => r.box).filter((b): b is Box => !!b && b.length === 4);
-    setCrop(img ? cropToBoxes(img.image, boxes) : null);
-    setStep('review');
-  };
-
-  const onFile = async (file: File | undefined) => {
-    if (!file) return;
-    setError(null);
-    setStep('working');
-    let img: PreparedImage | null = null;
-    try {
-      setStatus('Foto wird vorbereitet …');
-      img = await prepareImage(file);
-      setImage(img);
-      setStatus('Zähler und Stand werden erkannt …');
-      const fd = new FormData();
-      fd.append('file', img.blob, 'foto.jpg');
-      // Aufnahmezeitpunkt: bei einem Foto aus der Mediathek das Dateidatum, sonst jetzt
-      fd.append('takenAt', new Date(file.lastModified || Date.now()).toISOString());
-      const res = await post<UploadResult>('/photos', fd);
-      apply(res, img, true);
-    } catch (e) {
-      // Foto behalten: Zähler von Hand wählen, dann wird es für diesen Zähler hochgeladen
-      setError(`${e instanceof Error ? e.message : 'Hochladen fehlgeschlagen'}${img ? ' – bitte den Zähler wählen.' : ''}`);
-      setStep(img ? 'review' : 'start');
-    }
-  };
-
-  /** Anderer Zähler: das Foto wird für diesen Zähler neu gelesen. */
-  const chooseMeter = async (id: string | null) => {
-    if (!id || id === meterId) return;
-    setMeterId(id);
-    setAutoAssigned(false);
-    setValues({});
-    setWarnings([]);
-    if (!upload && !image) return;
-    setStep('working');
-    setStatus('Stand wird für diesen Zähler gelesen …');
-    setError(null);
-    try {
-      let res: UploadResult;
-      if (upload) {
-        res = await post<UploadResult>(`/photos/${upload.photoId}/assign`, { meterId: id });
-      } else {
+  const sendFiles = async (files: FileList | null) => {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      const key = `${Date.now()}-${Math.random()}`;
+      try {
+        const img = await prepareImage(file);
+        setSent((list) => [...list, { key, url: img.url, state: 'uploading' }]);
         const fd = new FormData();
-        fd.append('file', image!.blob, 'foto.jpg');
-        fd.append('takenAt', dayjs(readAt).toISOString());
-        res = await post<UploadResult>(`/meters/${id}/photos`, fd);
+        fd.append('file', img.blob, 'foto.jpg');
+        // Aufnahmezeitpunkt: bei einem Foto aus der Mediathek das Dateidatum, sonst jetzt
+        fd.append('takenAt', new Date(file.lastModified || Date.now()).toISOString());
+        await post<UploadResult>('/photos?async=true', fd);
+        update(key, { state: 'done' });
+        await qc.invalidateQueries({ queryKey: ['inbox'] });
+      } catch (e) {
+        setSent((list) =>
+          list.some((s) => s.key === key)
+            ? list.map((s) => (s.key === key ? { ...s, state: 'error', error: e instanceof Error ? e.message : 'Fehler' } : s))
+            : [...list, { key, url: '', state: 'error', error: e instanceof Error ? e.message : 'Fehler' }],
+        );
       }
-      apply({ ...res, meterId: res.meterId ?? id }, image, false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Fehler');
-      setStep('review');
-    }
-  };
-
-  const payload = () => ({
-    readAt: dayjs(readAt).toISOString(),
-    photoId: upload?.photoId,
-    note: note || undefined,
-    values: (meter?.registers ?? [])
-      .filter((r) => values[r.id] !== '' && values[r.id] !== undefined)
-      .map((r) => {
-        const ocr = upload?.ocr?.registers.find((x) => x.registerId === r.id);
-        return { registerId: r.id, value: Number(values[r.id]), ocrValue: ocr?.value ?? undefined, ocrConfidence: ocr?.confidence ?? undefined };
-      }),
-  });
-
-  // Plausibilität prüfen, sobald Werte da sind
-  useEffect(() => {
-    if (step !== 'review' || !meter) return;
-    const p = payload();
-    if (p.values.length === 0) return;
-    const h = setTimeout(() => {
-      post<RegisterWarnings[]>(`/meters/${meter.id}/readings/check`, p).then(setWarnings).catch(() => {});
-    }, 400);
-    return () => clearTimeout(h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [values, readAt, meterId, step]);
-
-  const save = async () => {
-    if (!meter) return setError('Bitte den Zähler wählen.');
-    const p = payload();
-    if (p.values.length === 0) return setError('Bitte den Zählerstand eingeben.');
-    setSaving(true);
-    setError(null);
-    try {
-      await post(`/meters/${meter.id}/readings`, p);
-      await qc.invalidateQueries();
-      setSavedName(meter.name);
-      setStep('done');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen');
-    } finally {
-      setSaving(false);
     }
   };
 
   const fileInputs = (
     <>
-      <input ref={cameraInput} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void onFile(e.currentTarget.files?.[0])} />
-      <input ref={libraryInput} type="file" accept="image/*" hidden onChange={(e) => void onFile(e.currentTarget.files?.[0])} />
+      <input
+        ref={cameraInput}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={(e) => {
+          void sendFiles(e.currentTarget.files);
+          e.currentTarget.value = '';
+        }}
+      />
+      <input
+        ref={libraryInput}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          void sendFiles(e.currentTarget.files);
+          e.currentTarget.value = '';
+        }}
+      />
     </>
   );
 
-  if (step === 'start') {
-    return (
-      <Stack maw={520} mx="auto" gap="lg" pt="md">
-        {fileInputs}
-        <Title order={2}>Zähler ablesen</Title>
-        <Button size="xl" h={120} leftSection={<IconCamera size={36} />} onClick={() => cameraInput.current?.click()}>
-          Zähler fotografieren
-        </Button>
-        <Text c="dimmed" size="sm">
-          Den Zähler möglichst gerade und ohne Spiegelung fotografieren, die Zählernummer gern mit aufs Bild. MeterBook erkennt, welcher
-          Zähler es ist, und liest den Stand ab – du prüfst nur noch.
-        </Text>
-        <Group grow>
-          <Button variant="default" leftSection={<IconPhoto size={18} />} onClick={() => libraryInput.current?.click()}>
-            Aus Fotos wählen
-          </Button>
-          <Button variant="default" leftSection={<IconKeyboard size={18} />} onClick={() => setStep('review')}>
-            Ohne Foto
-          </Button>
-        </Group>
-        {error && <Alert color="red">{error}</Alert>}
-      </Stack>
-    );
-  }
-
-  if (step === 'working') {
-    return (
-      <Stack maw={520} mx="auto" align="center" pt={60} gap="md">
-        {image && <Image src={image.url} radius="md" mah={260} fit="contain" />}
-        <Loader />
-        <Text>{status}</Text>
-        <Text size="xs" c="dimmed">
-          Das dauert meist 10–30 Sekunden.
-        </Text>
-      </Stack>
-    );
-  }
-
-  if (step === 'done') {
+  if (savedName) {
     return (
       <Stack maw={520} mx="auto" align="center" pt={60} gap="lg">
-        {fileInputs}
         <ThemeIcon size={72} radius="xl" color="green">
           <IconCheck size={44} />
         </ThemeIcon>
         <Title order={3}>{savedName}: gespeichert</Title>
-        <Button size="lg" fullWidth leftSection={<IconCamera size={22} />} onClick={() => { reset(); cameraInput.current?.click(); }}>
-          Nächsten Zähler fotografieren
+        <Button variant="default" fullWidth onClick={() => setSavedName(null)}>
+          Weiter ablesen
         </Button>
         <Button variant="default" fullWidth component={Link} to="/">
           Zur Übersicht
@@ -233,106 +100,77 @@ export function CapturePage() {
     );
   }
 
-  // --- Prüfen
-  const ocrFor = (id: string) => upload?.ocr?.registers.find((r) => r.registerId === id);
+  if (manual) {
+    return (
+      <Stack maw={520} mx="auto" pb={100}>
+        <Title order={3}>Ablesung ohne Foto</Title>
+        <PhotoReview
+          item={null}
+          onSaved={(name) => {
+            setManual(false);
+            setSavedName(name);
+          }}
+          onCancel={() => setManual(false)}
+        />
+      </Stack>
+    );
+  }
+
+  const done = sent.filter((s) => s.state === 'done').length;
   return (
-    <Stack maw={520} mx="auto" gap="md" pb={100}>
+    <Stack maw={520} mx="auto" gap="lg" pt="md">
       {fileInputs}
-      {image && (
-        <Card withBorder p={0} onClick={() => setZoom(true)} style={{ cursor: 'zoom-in' }}>
-          <Image src={crop ?? image.url} mah={crop ? 220 : 300} fit="contain" />
-          <Text size="xs" c="dimmed" ta="center" py={4}>
-            {crop ? 'Erkannte Ziffern · antippen für das ganze Foto' : 'Antippen zum Vergrößern'}
-          </Text>
-        </Card>
+      <Title order={2}>Zähler ablesen</Title>
+      <Button size="xl" h={120} leftSection={<IconCamera size={36} />} onClick={() => cameraInput.current?.click()}>
+        {sent.length ? 'Nächstes Foto' : 'Zähler fotografieren'}
+      </Button>
+      {sent.length === 0 && (
+        <Text c="dimmed" size="sm">
+          Fotografiere einen oder mehrere Zähler nacheinander – möglichst gerade und ohne Spiegelung, die Zählernummer gern mit aufs Bild.
+          Die Fotos landen im <b>Eingang</b>; MeterBook erkennt dort Zähler und Stand, du prüfst und speicherst.
+        </Text>
       )}
 
-      <Select
-        label={autoAssigned ? 'Zähler (automatisch erkannt)' : 'Zähler'}
-        placeholder="Bitte wählen"
-        data={(meters.data ?? []).map((m) => ({ value: m.id, label: m.name }))}
-        value={meterId}
-        onChange={(v) => void chooseMeter(v)}
-        allowDeselect={false}
-        size="md"
-        leftSection={meter ? <ThemeIcon variant="light" size="sm" color={ICON_COLOR[iconOf(meter)]}><MediumIcon meter={meter} size={14} /></ThemeIcon> : undefined}
-      />
-      {upload && !upload.meterId && !meterId && (
-        <Alert color="orange" icon={<IconAlertTriangle size={16} />}>
-          Der Zähler wurde nicht erkannt – bitte oben auswählen.
-        </Alert>
-      )}
-      {upload?.ocr && meter && (
-        <Badge leftSection={<IconSparkles size={12} />} variant="light" size="lg">
-          Automatisch erkannt – bitte prüfen
-        </Badge>
-      )}
-      {upload?.ocr?.serialNumberMatches === false && (
-        <Alert color="orange">
-          Auf dem Foto steht die Zählernummer {upload.ocr.serialNumberSeen}, erwartet wird {meter?.serialNumber}. Richtiger Zähler?
-        </Alert>
-      )}
-      {upload?.ocrError && <Alert color="orange">Erkennung nicht möglich: {upload.ocrError}</Alert>}
-
-      {meter?.registers.map((r) => {
-        const ocr = ocrFor(r.id);
-        const w = warnings.find((x) => x.registerId === r.id)?.warnings ?? [];
-        return (
-          <Stack key={r.id} gap={4}>
-            <DecimalInput
-              label={meter.registers.length > 1 ? `Zählwerk ${r.name}` : 'Zählerstand'}
-              description={r.lastReading ? `Zuletzt ${num(r.lastReading.value, r.decimals)} ${meter.unit}` : undefined}
-              value={values[r.id] ?? ''}
-              onChange={(v) => setValues((s) => ({ ...s, [r.id]: v === '' ? '' : Number(v) }))}
-              decimalScale={r.decimals}
-              min={0}
-              hideControls
-              size="lg"
-              inputMode="decimal"
-              rightSection={<Text size="sm" c="dimmed" pr="xs">{meter.unit}</Text>}
-              rightSectionWidth={54}
-              classNames={{ input: 'tabular' }}
-            />
-            {ocr && (
-              <Text size="xs" c={ocr.confidence < 0.6 ? 'yellow.8' : 'dimmed'}>
-                erkannt „{ocr.digits}“ · Sicherheit {Math.round(ocr.confidence * 100)} %
-                {ocr.confidence < 0.6 ? ' – bitte Ziffern mit dem Foto vergleichen' : ''}
-              </Text>
-            )}
-            {w.map((x, i) => (
-              <Text key={i} size="xs" c="orange.7">
-                {x.message}
-              </Text>
+      {sent.length > 0 && (
+        <Stack gap="xs">
+          <SimpleGrid cols={4} spacing="xs">
+            {sent.map((s) => (
+              <div key={s.key} style={{ position: 'relative' }}>
+                {s.url ? <Image src={s.url} radius="sm" h={70} fit="cover" /> : <div style={{ height: 70 }} />}
+                <Badge
+                  size="xs"
+                  color={s.state === 'done' ? 'green' : s.state === 'error' ? 'red' : 'blue'}
+                  style={{ position: 'absolute', bottom: 4, left: 4 }}
+                  leftSection={s.state === 'uploading' ? <Loader size={8} color="white" /> : undefined}
+                >
+                  {s.state === 'done' ? 'im Eingang' : s.state === 'error' ? 'Fehler' : 'lädt'}
+                </Badge>
+              </div>
             ))}
-          </Stack>
-        );
-      })}
-
-      {meter && (
-        <>
-          <DateTimeField label="Zeitpunkt" value={readAt} onChange={setReadAt} />
-          <TextInput label="Notiz" placeholder="optional" value={note} onChange={(e) => setNote(e.currentTarget.value)} />
-        </>
+          </SimpleGrid>
+          {sent
+            .filter((s) => s.state === 'error')
+            .map((s) => (
+              <Alert key={s.key} color="red" py={6}>
+                {s.error}
+              </Alert>
+            ))}
+          {done > 0 && (
+            <Button size="lg" variant="light" leftSection={<IconInbox size={20} />} onClick={() => navigate('/eingang')}>
+              Zum Eingang – prüfen und speichern
+            </Button>
+          )}
+        </Stack>
       )}
-      {error && <Alert color="red">{error}</Alert>}
 
       <Group grow>
-        <Button variant="default" onClick={reset}>
-          Abbrechen
+        <Button variant="default" leftSection={<IconPhoto size={18} />} onClick={() => libraryInput.current?.click()}>
+          Aus Fotos wählen
         </Button>
-        <Button size="md" onClick={() => void save()} loading={saving} disabled={!meter}>
-          {warnings.some((w) => w.warnings.length > 0) ? 'Trotzdem speichern' : 'Speichern'}
+        <Button variant="default" leftSection={<IconKeyboard size={18} />} onClick={() => setManual(true)}>
+          Ohne Foto
         </Button>
       </Group>
-
-      <Modal opened={zoom} onClose={() => setZoom(false)} fullScreen title="Foto" padding={0}>
-        {image && (
-          <Center p="xs">
-            {/* Mit zwei Fingern zoomen ist im Browser eingebaut */}
-            <img src={image.url} alt="Foto des Zählers" style={{ maxWidth: '100%', touchAction: 'pinch-zoom' }} />
-          </Center>
-        )}
-      </Modal>
     </Stack>
   );
 }

@@ -111,7 +111,7 @@ fun SettingsScreen(app: MeterBookApp, onBack: () -> Unit) {
             )
             Spacer(Modifier.height(24.dp))
             OutlinedButton(
-                onClick = { scope.launch { app.repo.clear(); app.api.logout() } },
+                onClick = { scope.launch { app.repo.clear(); app.photoInbox.clear(); app.api.logout() } },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             ) { Text("Abmelden") }
         }

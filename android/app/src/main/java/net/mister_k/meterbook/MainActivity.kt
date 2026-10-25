@@ -2,7 +2,10 @@ package net.mister_k.meterbook
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import net.mister_k.meterbook.ui.CaptureScreen
 import net.mister_k.meterbook.ui.CaptureViewModel
 import net.mister_k.meterbook.ui.HomeScreen
+import net.mister_k.meterbook.ui.InboxScreen
 import net.mister_k.meterbook.ui.LoginScreen
 import net.mister_k.meterbook.ui.MeterScreen
 import net.mister_k.meterbook.ui.ReviewScreen
@@ -24,11 +28,23 @@ import net.mister_k.meterbook.ui.theme.MeterBookTheme
 
 class MainActivity : ComponentActivity() {
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    /** Ziel aus einer Benachrichtigung, z. B. "inbox" */
+    private val openTarget = MutableStateFlow<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openTarget.value = intent.getStringExtra(EXTRA_OPEN)
+    }
+
+    companion object {
+        const val EXTRA_OPEN = "open"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = application as MeterBookApp
+        openTarget.value = intent?.getStringExtra(EXTRA_OPEN)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -39,8 +55,15 @@ class MainActivity : ComponentActivity() {
                     LoginScreen(app)
                 } else {
                     val nav = rememberNavController()
-                    // Gemeinsamer Zustand für Aufnahme → Prüfen
+                    // Gemeinsamer Zustand für Eingang → Prüfen
                     val capture: CaptureViewModel = viewModel()
+                    val target by openTarget.collectAsStateWithLifecycle()
+                    LaunchedEffect(target) {
+                        if (target == "inbox") {
+                            nav.navigate("inbox") { launchSingleTop = true }
+                            openTarget.value = null
+                        }
+                    }
                     NavHost(nav, startDestination = "home") {
                         composable("home") {
                             HomeScreen(
@@ -49,6 +72,7 @@ class MainActivity : ComponentActivity() {
                                 onCaptureAuto = { nav.navigate("capture/auto") },
                                 onOpenMeter = { nav.navigate("meter/$it") },
                                 onSettings = { nav.navigate("settings") },
+                                onOpenInbox = { nav.navigate("inbox") },
                             )
                         }
                         composable("meter/{id}") { entry ->
@@ -65,7 +89,7 @@ class MainActivity : ComponentActivity() {
                                 app,
                                 meterId = id.takeIf { it != "auto" },
                                 viewModel = capture,
-                                onCaptured = { nav.navigate("review") { popUpTo("capture/{id}") { inclusive = true } } },
+                                onDone = { nav.navigate("inbox") { popUpTo("capture/{id}") { inclusive = true } } },
                                 onManual = { nav.navigate("review") { popUpTo("capture/{id}") { inclusive = true } } },
                                 onBack = { nav.popBackStack() },
                             )
@@ -74,9 +98,19 @@ class MainActivity : ComponentActivity() {
                             ReviewScreen(
                                 app,
                                 viewModel = capture,
-                                onDone = { nav.popBackStack("home", inclusive = false) },
-                                onRetake = { id -> nav.navigate("capture/${id ?: "auto"}") { popUpTo("review") { inclusive = true } } },
+                                onDone = { nav.popBackStack() },
                                 onBack = { nav.popBackStack() },
+                            )
+                        }
+                        composable("inbox") {
+                            InboxScreen(
+                                app,
+                                onOpen = { item ->
+                                    capture.openInbox(item)
+                                    nav.navigate("review")
+                                },
+                                onCapture = { nav.navigate("capture/auto") },
+                                onBack = { if (!nav.popBackStack()) nav.navigate("home") },
                             )
                         }
                         composable("settings") {

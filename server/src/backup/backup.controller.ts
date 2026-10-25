@@ -22,6 +22,7 @@ import { config } from '../config';
 import { PrismaService } from '../prisma.service';
 import { version } from '../version';
 import { PhotoRetentionService } from '../photos/photo-retention.service';
+import { PhotosService } from '../photos/photos.service';
 import { BackupService } from './backup.service';
 
 function sendZip(res: Response, name: string, buf: Buffer) {
@@ -75,6 +76,7 @@ export class AdminBackupController {
   constructor(
     private readonly backup: BackupService,
     private readonly retention: PhotoRetentionService,
+    private readonly photos: PhotosService,
   ) {}
 
   @Get('backups')
@@ -124,6 +126,17 @@ export class AdminBackupController {
   @HttpCode(200)
   async cleanup() {
     return { deleted: await this.retention.run() };
+  }
+
+  /**
+   * Alle bestätigten Fotos auf den Ziffernbereich zuschneiden. Nicht umkehrbar – deshalb wird
+   * vorher eine Sicherung (mit den vollständigen Fotos) angelegt.
+   */
+  @Post('photos/crop')
+  @HttpCode(200)
+  async crop() {
+    const backup = await this.backup.create('vor-zuschnitt');
+    return { ...(await this.photos.cropAll()), backup: backup.name };
   }
 }
 

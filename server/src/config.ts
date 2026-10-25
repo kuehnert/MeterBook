@@ -14,6 +14,8 @@ export const config = {
   accessTokenTtlSeconds: 15 * 60,
   refreshTokenTtlDays: 180,
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  /** Nur zum Testen ohne API-Schlüssel: simulierte Erkennung (nie in der Produktion setzen) */
+  ocrFake: process.env.OCR_FAKE === '1',
   ocrModel: process.env.OCR_MODEL || 'claude-opus-5-5',
   /** Name der Umgebung, wird im Web und in der App angezeigt (z. B. "dev"); leer = Produktion */
   envName: process.env.MB_ENV ?? '',

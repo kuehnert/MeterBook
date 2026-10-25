@@ -1,7 +1,7 @@
 import { ActionIcon, Alert, Badge, Button, Card, Code, FileInput, Group, List, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
-import { IconDownload, IconPhotoOff, IconRestore, IconShieldCheck, IconTrash } from '@tabler/icons-react';
+import { IconCrop, IconDownload, IconPhotoOff, IconRestore, IconShieldCheck, IconTrash } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { blob, del, download, get, logout, post } from '../lib/api';
@@ -255,6 +255,40 @@ export function BackupPage() {
             }
           >
             Jetzt aufräumen
+          </Button>
+        </Group>
+        <Group justify="space-between" mt="md" pt="md" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+          <Text size="sm" c="dimmed" maw={520}>
+            Neue Fotos werden beim Speichern auf den Bereich mit den Ziffern zugeschnitten. Ältere, schon bestätigte Fotos lassen sich hier
+            nachträglich zuschneiden – vorher wird eine Sicherung mit den vollständigen Fotos angelegt.
+          </Text>
+          <Button
+            variant="default"
+            leftSection={<IconCrop size={16} />}
+            loading={busy === 'crop'}
+            onClick={() =>
+              modals.openConfirmModal({
+                title: 'Alle Fotos zuschneiden?',
+                children: (
+                  <Text size="sm">
+                    Bestätigte Fotos werden auf die Ziffern zugeschnitten, der Rest des Bildes wird gelöscht. Fotos, bei denen die Lage der
+                    Ziffern unbekannt ist oder die vollständig behalten werden sollten, bleiben unverändert. Vorher wird automatisch gesichert.
+                  </Text>
+                ),
+                labels: { confirm: 'Zuschneiden', cancel: 'Abbrechen' },
+                onConfirm: () =>
+                  void run('crop', async () => {
+                    const r = await post<{ cropped: number; skipped: number; backup: string }>('/admin/photos/crop');
+                    await qc.invalidateQueries();
+                    notifications.show({
+                      color: 'green',
+                      message: `${r.cropped} Fotos zugeschnitten, ${r.skipped} unverändert. Sicherung: ${r.backup}`,
+                    });
+                  }),
+              })
+            }
+          >
+            Fotos zuschneiden
           </Button>
         </Group>
       </Card>

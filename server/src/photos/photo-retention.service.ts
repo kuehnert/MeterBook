@@ -47,8 +47,8 @@ export class PhotoRetentionService implements OnApplicationBootstrap, OnModuleDe
         where: {
           OR: [
             { createdAt: { lt: cutoff } },
-            // Fotos, die keinem Zähler zugeordnet werden konnten und nie zu einer Ablesung wurden
-            { meterId: null, readings: { none: {} }, createdAt: { lt: new Date(now.getTime() - DAY) } },
+            // Fotos im Eingang, die keinem Zähler zugeordnet und nie bearbeitet wurden
+            { meterId: null, readings: { none: {} }, createdAt: { lt: new Date(now.getTime() - 30 * DAY) } },
           ],
         },
         select: { id: true, userId: true },

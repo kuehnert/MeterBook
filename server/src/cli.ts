@@ -5,6 +5,7 @@
 //   docker exec meterbook node dist/cli.js list                   # vorhandene Sicherungen
 //   docker exec meterbook node dist/cli.js restore /data/backups/<datei>.zip --yes
 //   docker exec meterbook node dist/cli.js photos-cleanup         # alte Fotos jetzt löschen
+//   docker exec meterbook node dist/cli.js photos-crop            # Fotos auf die Ziffern zuschneiden
 //
 // Der laufende Server muss dafür nicht angehalten werden.
 
@@ -20,12 +21,14 @@ import { AppModule } from './app.module';
 import { BackupService } from './backup/backup.service';
 import { config } from './config';
 import { PhotoRetentionService } from './photos/photo-retention.service';
+import { PhotosService } from './photos/photos.service';
 
 const USAGE = `Aufruf: node dist/cli.js <befehl>
   backup [--out <datei>]     Sicherung des ganzen Servers (mit Fotos) anlegen
   list                       vorhandene Sicherungen anzeigen
   restore <datei> --yes      ALLE Daten durch die Sicherung ersetzen (vorher wird automatisch gesichert)
-  photos-cleanup             Fotos löschen, die älter als PHOTO_RETENTION_DAYS sind`;
+  photos-cleanup             Fotos löschen, die älter als PHOTO_RETENTION_DAYS sind
+  photos-crop                bestätigte Fotos auf die Ziffern zuschneiden (vorher wird gesichert)`;
 
 async function main() {
   const [cmd, ...args] = process.argv.slice(2);
@@ -73,6 +76,13 @@ async function main() {
         const res = await backup.restore(buf);
         console.log(`Eingespielt: ${res.users} Nutzer. Der vorherige Stand liegt in ${res.safetyBackup}.`);
         console.log('Alle Nutzer müssen sich neu anmelden.');
+        break;
+      }
+      case 'photos-crop': {
+        const safety = await backup.create('vor-zuschnitt');
+        console.log(`Sicherung mit den vollständigen Fotos: ${safety.name}`);
+        const res = await app.get(PhotosService).cropAll();
+        console.log(`${res.cropped} Fotos zugeschnitten, ${res.skipped} unverändert (Lage der Ziffern unbekannt)`);
         break;
       }
       case 'photos-cleanup': {

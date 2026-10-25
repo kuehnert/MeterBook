@@ -132,6 +132,8 @@ export interface UploadResult {
   meterId: string | null;
   takenAt: string;
   takenAtSource: 'exif' | 'filename' | 'client' | 'now';
+  /** NONE | PENDING (Erkennung läuft im Hintergrund) | DONE | FAILED */
+  ocrStatus: string;
   ocr: OcrResult | null;
   ocrError: string | null;
   warnings: RegisterWarnings[];
@@ -143,4 +145,18 @@ export interface Health {
   ocr: boolean;
   /** Name der Umgebung, z. B. "dev"; null = Produktion */
   env: string | null;
+}
+
+/** Foto im Eingang: hochgeladen, aber noch keine Ablesung daraus gespeichert */
+export interface InboxItem {
+  photoId: string;
+  meterId: string | null;
+  takenAt: string;
+  createdAt: string;
+  /** NONE | PENDING | DONE | FAILED */
+  ocrStatus: string;
+  ocr: OcrResult | null;
+  ocrError: string | null;
+  /** schon auf die Ziffern zugeschnitten */
+  cropped: boolean;
 }

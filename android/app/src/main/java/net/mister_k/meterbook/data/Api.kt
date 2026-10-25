@@ -129,6 +129,45 @@ class Api(private val session: Session) {
     suspend fun check(meterId: String, group: ReadingGroupIn): List<RegisterWarnings> = post("/meters/$meterId/readings/check", group)
     suspend fun saveReading(meterId: String, group: ReadingGroupIn): SaveResult = post("/meters/$meterId/readings", group)
 
+    /**
+     * Foto in den Eingang hochladen; die Erkennung läuft auf dem Server im Hintergrund.
+     * Ohne meterId erkennt der Server auch, welcher Zähler es ist.
+     */
+    suspend fun uploadToInbox(file: File, meterId: String?, takenAtIso: String): UploadResult {
+        val body: RequestBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("takenAt", takenAtIso)
+            .addFormDataPart("file", file.name, file.asRequestBody("image/jpeg".toMediaType()))
+            .build()
+        val path = if (meterId != null) "/meters/$meterId/photos?async=true" else "/photos?async=true"
+        return json.decodeFromString(execute({ Request.Builder().url(url(path)).post(body) }))
+    }
+
+    suspend fun inbox(): List<InboxItem> = get("/photos/inbox")
+
+    suspend fun photoInfo(photoId: String): InboxItem = get("/photos/$photoId/info")
+
+    /** Foto (bzw. Vorschaubild) vom Server in eine Datei laden */
+    suspend fun downloadPhoto(photoId: String, target: File, thumb: Boolean = false): File = withContext(Dispatchers.IO) {
+        val token = session.accessToken
+        val req = Request.Builder().url(url("/photos/$photoId" + if (thumb) "?size=thumb" else ""))
+            .apply { if (token != null) header("Authorization", "Bearer $token") }
+            .get().build()
+        try {
+            client.newCall(req).execute().use {
+                if (!it.isSuccessful) throw ApiException(it.code, "Foto nicht verfügbar")
+                target.outputStream().use { out -> it.body.byteStream().copyTo(out) }
+            }
+        } catch (e: IOException) {
+            throw OfflineException(e)
+        }
+        target
+    }
+
+    suspend fun deletePhoto(photoId: String) {
+        execute({ Request.Builder().url(url("/photos/$photoId")).delete() })
+    }
+
     /** Foto ohne Zähler hochladen – der Server erkennt, welcher Zähler es ist. */
     suspend fun uploadPhotoAuto(file: File, takenAtIso: String): UploadResult {
         val body: RequestBody = MultipartBody.Builder()
