@@ -3,7 +3,7 @@
 name: meterbook
 services:
   meterbook:
-    image: ghcr.io/kuehnert/meterbook:0.2.0
+    image: ghcr.io/kuehnert/meterbook:0.3.0
     container_name: meterbook
     restart: unless-stopped
     ports:
