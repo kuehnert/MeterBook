@@ -40,6 +40,7 @@ export function ChartTab({ meter }: { meter: Meter }) {
           value={granularity}
           onChange={setGranularity}
           data={[
+            { value: 'day', label: 'Tage' },
             { value: 'week', label: 'Wochen' },
             { value: 'month', label: 'Monate' },
             { value: 'year', label: 'Jahre' },
@@ -66,7 +67,15 @@ export function ChartTab({ meter }: { meter: Meter }) {
           <ResponsiveContainer width="100%" height={340}>
             <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--mantine-color-default-border)" />
-              <XAxis dataKey="label" tick={{ fontSize: 12, fill: 'var(--mantine-color-dimmed)' }} tickLine={false} axisLine={false} minTickGap={8} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 12, fill: 'var(--mantine-color-dimmed)' }}
+                tickLine={false}
+                axisLine={false}
+                minTickGap={8}
+                // Tage: Jahreszahl auf der Achse weglassen (steht im Tooltip)
+                tickFormatter={(v: string) => (granularity === 'day' ? v.replace(/\d{4}/, '') : v)}
+              />
               <YAxis
                 tick={{ fontSize: 12, fill: 'var(--mantine-color-dimmed)' }}
                 tickLine={false}

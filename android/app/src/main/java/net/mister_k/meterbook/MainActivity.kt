@@ -91,7 +91,7 @@ class MainActivity : ComponentActivity() {
                                 app,
                                 meterId = id.takeIf { it != "auto" },
                                 viewModel = capture,
-                                onDone = { nav.navigate("inbox") { popUpTo("capture/{id}") { inclusive = true } } },
+                                onQueued = { if (!nav.popBackStack("home", inclusive = false)) nav.navigate("home") },
                                 onManual = { nav.navigate("review") { popUpTo("capture/{id}") { inclusive = true } } },
                                 onBack = { nav.popBackStack() },
                             )
