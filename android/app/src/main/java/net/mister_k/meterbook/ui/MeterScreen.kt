@@ -59,7 +59,14 @@ fun MeterScreen(app: MeterBookApp, meterId: String, onBack: () -> Unit, onCaptur
 
     LaunchedEffect(granularity) {
         try {
-            buckets = app.api.series(meterId, granularity).buckets.takeLast(if (granularity == "month") 24 else 10)
+            buckets = app.api.series(meterId, granularity).buckets.takeLast(
+                when (granularity) {
+                    "day" -> 31
+                    "week" -> 26
+                    "month" -> 24
+                    else -> 10
+                },
+            )
             error = null
         } catch (e: Exception) {
             error = e.message
@@ -80,10 +87,15 @@ fun MeterScreen(app: MeterBookApp, meterId: String, onBack: () -> Unit, onCaptur
     ) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                val options = listOf("month" to "Monate", "year" to "Jahre", "billing" to "Abrechnung")
+                val options = listOf("day" to "Tage", "week" to "Wochen", "month" to "Monate", "year" to "Jahre", "billing" to "Abr.")
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     options.forEachIndexed { i, (key, label) ->
-                        SegmentedButton(selected = granularity == key, onClick = { granularity = key }, shape = SegmentedButtonDefaults.itemShape(i, options.size)) { Text(label) }
+                        SegmentedButton(
+                            selected = granularity == key,
+                            onClick = { granularity = key },
+                            shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                            icon = {},
+                        ) { Text(label, maxLines = 1, style = MaterialTheme.typography.labelMedium) }
                     }
                 }
             }

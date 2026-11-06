@@ -56,9 +56,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.mister_k.meterbook.MeterBookApp
+import android.widget.Toast
 import java.io.File
 import java.time.Instant
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,20 +69,21 @@ import net.mister_k.meterbook.work.PhotoWorker
 
 /**
  * Kamera mit Ausrichtungsrahmen. Ein Foto pro Zähler – bei HT/NT beide Zählwerke ins Bild.
- * Jedes Foto geht sofort in den Eingang und wird im Hintergrund erkannt; man kann direkt
- * weiterfotografieren. meterId = null: Der Server erkennt, welcher Zähler es ist.
+ * Jedes Foto geht sofort in den Eingang und wird im Hintergrund erkannt; danach geht es zurück
+ * zur Übersicht, damit man den nächsten Zähler wählen kann. meterId = null: Der Server erkennt,
+ * welcher Zähler es ist.
  */
 @Composable
 fun CaptureScreen(
     app: MeterBookApp,
     meterId: String?,
     viewModel: CaptureViewModel,
-    onDone: () -> Unit,
+    /** Foto liegt im Eingang – zurück zur Übersicht */
+    onQueued: () -> Unit,
     onManual: () -> Unit,
     onBack: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    var taken by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current
     val meter = meterId?.let { app.repo.meter(it) }
@@ -168,16 +169,23 @@ fun CaptureScreen(
                             ContextCompat.getMainExecutor(context),
                             object : ImageCapture.OnImageSavedCallback {
                                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                    busy = false
-                                    taken++
+                                    // Erst in den Eingang legen, dann den Bildschirm verlassen –
+                                    // sonst bricht das Verlassen die Coroutine ab.
                                     scope.launch {
-                                        withContext(Dispatchers.IO) {
-                                            if (app.session.saveToGallery) runCatching { saveToGallery(app, file, meter?.name) }
-                                            val prepared = prepareForUpload(file, File(context.cacheDir, "prep_${System.currentTimeMillis()}.jpg"))
-                                            if (prepared != file) file.delete()
-                                            app.photoInbox.add(prepared, meterId, Instant.now().toString())
+                                        try {
+                                            withContext(Dispatchers.IO) {
+                                                if (app.session.saveToGallery) runCatching { saveToGallery(app, file, meter?.name) }
+                                                val prepared = prepareForUpload(file, File(context.cacheDir, "prep_${System.currentTimeMillis()}.jpg"))
+                                                if (prepared != file) file.delete()
+                                                app.photoInbox.add(prepared, meterId, Instant.now().toString())
+                                            }
+                                            PhotoWorker.enqueue(app)
+                                            Toast.makeText(context, "Foto im Eingang – wird im Hintergrund erkannt", Toast.LENGTH_SHORT).show()
+                                            onQueued()
+                                        } catch (e: Exception) {
+                                            busy = false
+                                            error = "Foto konnte nicht gespeichert werden: ${e.message}"
                                         }
-                                        PhotoWorker.enqueue(app)
                                     }
                                 }
 
@@ -196,19 +204,9 @@ fun CaptureScreen(
                     if (busy) CircularProgressIndicator(Modifier.size(28.dp)) else Box(Modifier.size(60.dp).background(Color.White, CircleShape))
                 }
             }
-            if (taken > 0) {
-                Text(
-                  if (taken == 1) "1 Foto im Eingang – wird im Hintergrund erkannt" else "$taken Fotos im Eingang – werden im Hintergrund erkannt",
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                )
-                Button(onClick = onDone) { Text("Fertig – zum Eingang") }
-            } else {
-                TextButton(onClick = { viewModel.startManual(meterId); onManual() }) {
-                    Icon(Icons.Outlined.Keyboard, null, tint = Color.White)
-                    Text("  Ohne Foto eingeben", color = Color.White)
-                }
+            TextButton(onClick = { viewModel.startManual(meterId); onManual() }, enabled = !busy) {
+                Icon(Icons.Outlined.Keyboard, null, tint = Color.White)
+                Text("  Ohne Foto eingeben", color = Color.White)
             }
         }
     }
