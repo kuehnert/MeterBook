@@ -80,6 +80,8 @@ model Meter {
   /// Beginn der Abrechnungsperiode (Monat 1–12, Tag 1–28)
   billingStartMonth Int              @default(1)
   billingStartDay   Int              @default(1)
+  /// Eigener Ablese-Rhythmus (OFF | WEEKLY | MONTHLY | QUARTERLY | YEARLY); null = Standard des Nutzers
+  reminderInterval  String?
   archived          Boolean          @default(false)
   sortOrder         Int              @default(0)
   createdAt         DateTime         @default(now())
@@ -172,14 +174,30 @@ model Tariff {
   id                String            @id @default(cuid())
   meterId           String
   name              String?
+  /// Stromanbieter bzw. Versorger, z. B. nach einem Wechsel
+  provider          String?
   validFrom         DateTime
-  /// Grundpreis in € pro Monat (brutto)
-  basePricePerMonth Decimal           @default(0)
+  /// Grundpreis in € pro Jahr (brutto), wird zeitanteilig verteilt
+  basePricePerYear  Decimal           @default(0)
   createdAt         DateTime          @default(now())
   meter             Meter             @relation(fields: [meterId], references: [id], onDelete: Cascade)
   components        TariffComponent[]
+  bonuses           TariffBonus[]
 
   @@index([meterId, validFrom])
+}
+
+/// Bonus beim Anbieterwechsel (z. B. Neukunden- oder Sofortbonus). Wird über das erste
+/// Vertragsjahr ab validFrom des Tarifs verteilt von den Kosten abgezogen.
+model TariffBonus {
+  id       String  @id @default(cuid())
+  tariffId String
+  label    String
+  /// € (brutto)
+  amount   Decimal
+  tariff   Tariff  @relation(fields: [tariffId], references: [id], onDelete: Cascade)
+
+  @@index([tariffId])
 }
 
 /// Arbeitspreis je Einheit für ein Zählwerk. Mehrere Komponenten je Zählwerk sind

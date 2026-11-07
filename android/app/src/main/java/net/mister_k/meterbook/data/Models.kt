@@ -14,7 +14,7 @@ data class Health(val status: String, val version: String, val ocr: Boolean, val
 /** Erinnerung ans Ablesen – auf dem Server gespeichert, gilt für E-Mail, App und Web. */
 @Serializable
 data class ReminderState(
-    /** OFF | WEEKLY | MONTHLY */
+    /** Standard für alle Zähler: OFF | WEEKLY | MONTHLY | QUARTERLY | YEARLY */
     val interval: String = "OFF",
     val email: Boolean = true,
     val skipUntil: String? = null,
@@ -25,7 +25,24 @@ data class ReminderState(
     val due: List<ReminderDue> = emptyList(),
     /** Termin da, nicht übersprungen und noch etwas abzulesen */
     val active: Boolean = false,
+    /** Mindestens ein Zähler wird erinnert */
+    val enabled: Boolean = false,
+    val meters: List<MeterReminder> = emptyList(),
 )
+
+/** Rhythmus eines Zählers; interval = null heißt Standard */
+@Serializable
+data class MeterReminder(
+    val id: String,
+    val name: String,
+    val interval: String? = null,
+    val effective: String = "OFF",
+    val current: String? = null,
+    val next: String? = null,
+)
+
+@Serializable
+data class MeterReminderIn(val interval: String?)
 
 @Serializable
 data class ReminderDue(val id: String, val name: String)
@@ -101,7 +118,19 @@ data class Overview(
     val perDayLastYear: Map<String, Double?> = emptyMap(),
     val currentPeriod: BillingPeriod? = null,
     val previousPeriod: BillingPeriod? = null,
+    /** Verbrauch der letzten Woche, des letzten Monats, Vierteljahres und Jahres */
+    val recentConsumption: List<RecentConsumption> = emptyList(),
     val daysSinceLastReading: Int? = null,
+)
+
+@Serializable
+data class RecentConsumption(
+    /** Woche | Monat | Vierteljahr | Jahr */
+    val label: String,
+    val from: String,
+    val to: String,
+    val total: Double? = null,
+    val estimated: Boolean = false,
 )
 
 @Serializable
@@ -112,6 +141,14 @@ data class SeriesBucket(
     val total: Double? = null,
     val previousYearTotal: Double? = null,
     val cost: Double? = null,
+    /** Laufende Periode */
+    val current: Boolean = false,
+    /** Hochrechnung auf die volle laufende Periode */
+    val forecastTotal: Double? = null,
+    /** Farbgruppe 0/1, wechselt mit Woche/Monat/Abrechnungsjahr */
+    val band: Int = 0,
+    /** Nur Monate: Abrechnungsjahr („2025“ oder „2025/26“) */
+    val period: String? = null,
 )
 
 @Serializable

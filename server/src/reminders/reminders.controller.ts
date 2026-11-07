@@ -1,16 +1,23 @@
-import { Body, Controller, Get, HttpCode, Post, Put } from '@nestjs/common';
-import { IsBoolean, IsIn, IsOptional } from 'class-validator';
+import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { IsBoolean, IsIn, IsOptional, ValidateIf } from 'class-validator';
 import { AuthUser, CurrentUser } from '../auth/decorators';
 import { RemindersService } from './reminders.service';
-import type { ReminderInterval } from './schedule';
+import { REMINDER_INTERVALS, type ReminderInterval } from './schedule';
 
 class ReminderSettingsDto {
   @IsOptional()
-  @IsIn(['OFF', 'WEEKLY', 'MONTHLY'])
+  @IsIn(REMINDER_INTERVALS)
   interval?: ReminderInterval;
   @IsOptional()
   @IsBoolean()
   email?: boolean;
+}
+
+class MeterIntervalDto {
+  /** null = Standard */
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsIn(REMINDER_INTERVALS)
+  interval: ReminderInterval | null;
 }
 
 class SkipDto {
@@ -31,6 +38,11 @@ export class RemindersController {
   @Put()
   update(@CurrentUser() user: AuthUser, @Body() dto: ReminderSettingsDto) {
     return this.reminders.update(user.id, dto);
+  }
+
+  @Put('meters/:id')
+  meter(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: MeterIntervalDto) {
+    return this.reminders.setMeterInterval(user.id, id, dto.interval ?? null);
   }
 
   @Post('skip')

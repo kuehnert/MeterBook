@@ -178,6 +178,11 @@ export interface BillingStart {
   day: number; // 1–28
 }
 
+/** Kalendertage zwischen zwei Zeitpunkten (lokale Zeit): gestern 18 Uhr → heute 9 Uhr = 1. */
+export function calendarDaysBetween(from: number, to: number): number {
+  return Math.round((bucketStart(to, 'day') - bucketStart(from, 'day')) / DAY);
+}
+
 export function bucketStart(t: number, g: Granularity, billing: BillingStart = { month: 1, day: 1 }): number {
   const d = new Date(t);
   switch (g) {
@@ -270,14 +275,19 @@ export function buckets(from: number, to: number, g: Granularity, billing?: Bill
 
 export interface TariffInput {
   validFrom: number;
-  basePricePerMonth: number;
+  /** € pro Jahr; zeitanteilig über ein Durchschnittsjahr von 365,2425 Tagen verteilt */
+  basePricePerYear: number;
   /** Summe der Arbeitspreise je Zählwerk (€ pro Einheit) */
   pricePerUnit: Record<string, number>;
+  /** Summe der Boni (€); wird über das erste Vertragsjahr ab validFrom verteilt abgezogen */
+  bonus?: number;
 }
 
 export interface CostResult {
   energy: number;
   base: number;
+  /** Anteil der Boni in diesem Zeitraum (positiv; wird von total abgezogen) */
+  bonus: number;
   total: number;
   perRegister: Record<string, { consumption: number; cost: number }>;
   /** Für einen Teil des Zeitraums ist kein Tarif hinterlegt */
@@ -297,7 +307,7 @@ export function costs(
 ): CostResult {
   const sorted = [...tariffs].sort((a, b) => a.validFrom - b.validFrom);
   const cuts = [from, ...sorted.map((t) => t.validFrom).filter((t) => t > from && t < to), to];
-  const res: CostResult = { energy: 0, base: 0, total: 0, perRegister: {}, missingTariff: false };
+  const res: CostResult = { energy: 0, base: 0, bonus: 0, total: 0, perRegister: {}, missingTariff: false };
   for (const reg of Object.keys(series)) res.perRegister[reg] = { consumption: 0, cost: 0 };
 
   for (let i = 0; i < cuts.length - 1; i++) {
@@ -315,9 +325,16 @@ export function costs(
         res.energy += c.value * price;
       }
     }
-    if (tariff) res.base += (tariff.basePricePerMonth * (e - s)) / AVG_MONTH;
+    if (tariff) res.base += (tariff.basePricePerYear * (e - s)) / (12 * AVG_MONTH);
   }
-  res.total = res.energy + res.base;
+  // Boni gelten fürs erste Vertragsjahr – auch wenn danach schon der nächste Tarif gilt
+  const year = 12 * AVG_MONTH;
+  for (const t of sorted) {
+    if (!t.bonus) continue;
+    const overlap = Math.min(to, t.validFrom + year) - Math.max(from, t.validFrom);
+    if (overlap > 0) res.bonus += (t.bonus * overlap) / year;
+  }
+  res.total = res.energy + res.base - res.bonus;
   return res;
 }
 

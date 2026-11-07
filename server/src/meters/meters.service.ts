@@ -107,14 +107,16 @@ export class MetersService {
     await this.find(userId, meterId);
     const tariffs = await this.prisma.tariff.findMany({
       where: { meterId },
-      include: { components: true },
+      include: { components: true, bonuses: true },
       orderBy: { validFrom: 'asc' },
     });
     return tariffs.map((t) => ({
       id: t.id,
       name: t.name,
+      provider: t.provider,
       validFrom: t.validFrom,
-      basePricePerMonth: numOr0(t.basePricePerMonth),
+      basePricePerYear: numOr0(t.basePricePerYear),
+      bonuses: t.bonuses.map((b) => ({ id: b.id, label: b.label, amount: numOr0(b.amount) })),
       components: t.components.map((c) => ({
         id: c.id,
         registerId: c.registerId,
@@ -130,9 +132,11 @@ export class MetersService {
     if (dto.components.some((c) => !regIds.has(c.registerId))) throw new BadRequestException('Unbekanntes Zählwerk');
     const data = {
       name: dto.name,
+      provider: dto.provider?.trim() || null,
       validFrom: new Date(dto.validFrom),
-      basePricePerMonth: dto.basePricePerMonth,
+      basePricePerYear: dto.basePricePerYear,
     };
+    const bonuses = (dto.bonuses ?? []).filter((b) => b.amount > 0).map((b) => ({ label: b.label.trim(), amount: b.amount }));
     const components = dto.components.map((c) => ({
       registerId: c.registerId,
       label: c.label,
@@ -142,10 +146,11 @@ export class MetersService {
       await this.findTariff(meterId, tariffId);
       await this.prisma.$transaction([
         this.prisma.tariffComponent.deleteMany({ where: { tariffId } }),
-        this.prisma.tariff.update({ where: { id: tariffId }, data: { ...data, components: { create: components } } }),
+        this.prisma.tariffBonus.deleteMany({ where: { tariffId } }),
+        this.prisma.tariff.update({ where: { id: tariffId }, data: { ...data, components: { create: components }, bonuses: { create: bonuses } } }),
       ]);
     } else {
-      await this.prisma.tariff.create({ data: { ...data, meterId, components: { create: components } } });
+      await this.prisma.tariff.create({ data: { ...data, meterId, components: { create: components }, bonuses: { create: bonuses } } });
     }
     return this.listTariffs(userId, meterId);
   }
@@ -253,7 +258,7 @@ export class MetersService {
     const [readings, exchanges, tariffs, advances] = await Promise.all([
       this.prisma.reading.findMany({ where: { registerId: { in: regIds } }, orderBy: { readAt: 'asc' } }),
       this.prisma.meterExchange.findMany({ where: { registerId: { in: regIds } } }),
-      this.prisma.tariff.findMany({ where: { meterId }, include: { components: true } }),
+      this.prisma.tariff.findMany({ where: { meterId }, include: { components: true, bonuses: true } }),
       this.prisma.advancePayment.findMany({ where: { meterId } }),
     ]);
     const series: Record<string, Point[]> = {};
@@ -275,7 +280,8 @@ export class MetersService {
       tariffs: tariffs.map((t) => {
         const pricePerUnit: Record<string, number> = {};
         for (const c of t.components) pricePerUnit[c.registerId] = (pricePerUnit[c.registerId] ?? 0) + numOr0(c.pricePerUnit);
-        return { validFrom: t.validFrom.getTime(), basePricePerMonth: numOr0(t.basePricePerMonth), pricePerUnit };
+        const bonus = t.bonuses.reduce((s, b) => s + numOr0(b.amount), 0);
+        return { validFrom: t.validFrom.getTime(), basePricePerYear: numOr0(t.basePricePerYear), pricePerUnit, bonus };
       }),
       advances: advances.map((a) => ({ validFrom: a.validFrom.getTime(), amountPerMonth: numOr0(a.amountPerMonth) })),
     };
@@ -325,6 +331,7 @@ export class MetersService {
       ocrHint: m.ocrHint,
       billingStartMonth: m.billingStartMonth,
       billingStartDay: m.billingStartDay,
+      reminderInterval: m.reminderInterval,
       archived: m.archived,
       sortOrder: m.sortOrder,
       lastReadAt,

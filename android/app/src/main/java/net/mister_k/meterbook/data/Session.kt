@@ -50,6 +50,11 @@ class Session(context: Context) {
         set(v) = prefs.edit { putString("reminderShownDay", v) }
 
     /** Fotos zusätzlich in der Galerie (Bilder/MeterBook) ablegen */
+    /** Zuletzt gewählte Einteilung im Verlauf (day, week, month, year, billing) */
+    var chartGranularity: String
+        get() = prefs.getString("chartGranularity", "month") ?: "month"
+        set(v) = prefs.edit { putString("chartGranularity", v) }
+
     var saveToGallery: Boolean
         get() = prefs.getBoolean("saveToGallery", true)
         set(v) = prefs.edit { putBoolean("saveToGallery", v) }

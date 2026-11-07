@@ -7,6 +7,7 @@ import {
   bucketStart,
   buckets,
   buildSeries,
+  calendarDaysBetween,
   checkReading,
   consumption,
   costs,
@@ -82,8 +83,8 @@ test('Kosten mit Tarifwechsel', () => {
   const r = costs(
     { ht: pts },
     [
-      { validFrom: t('2025-01-01T00:00'), basePricePerMonth: 10, pricePerUnit: { ht: 0.3 } },
-      { validFrom: t('2025-07-02T00:00'), basePricePerMonth: 12, pricePerUnit: { ht: 0.4 } },
+      { validFrom: t('2025-01-01T00:00'), basePricePerYear: 120, pricePerUnit: { ht: 0.3 } },
+      { validFrom: t('2025-07-02T00:00'), basePricePerYear: 144, pricePerUnit: { ht: 0.4 } },
     ],
     t('2025-01-01T00:00'),
     t('2025-12-31T00:00'),
@@ -128,4 +129,25 @@ test('Hochrechnung nutzt den Vorjahresverlauf', () => {
   const expected = 3800 + (3500 - valueAt(pts, t('2024-10-01T00:00'))!.v);
   assert.equal(v.kind, 'extrapolated');
   assert.ok(Math.abs(v.v - expected) < 1e-6);
+});
+
+test('Ablesung gestern Abend gilt als „gestern“, nicht als „heute“', () => {
+  assert.equal(calendarDaysBetween(t('2026-11-06T18:30'), t('2026-11-07T13:00')), 1);
+  assert.equal(calendarDaysBetween(t('2026-11-07T00:10'), t('2026-11-07T23:50')), 0);
+  // über die Zeitumstellung hinweg (25.10.2026)
+  assert.equal(calendarDaysBetween(t('2026-10-24T12:00'), t('2026-10-26T12:00')), 2);
+});
+
+test('Boni werden übers erste Vertragsjahr verteilt abgezogen', () => {
+  const series = { ht: buildSeries([{ readAt: d('2025-01-01T00:00'), value: 0 }, { readAt: d('2027-01-01T00:00'), value: 7300 }], []) };
+  const tariffs = [{ validFrom: t('2025-09-01T00:00'), basePricePerYear: 120, pricePerUnit: { ht: 0.3 }, bonus: 240 }];
+  // Ganzes erstes Vertragsjahr: voller Bonus
+  const firstYear = costs(series, tariffs, t('2025-09-01T00:00'), t('2026-09-01T00:00'));
+  assert.ok(Math.abs(firstYear.bonus - 240) < 0.7, `Bonus ${firstYear.bonus}`);
+  assert.ok(Math.abs(firstYear.total - (firstYear.energy + firstYear.base - firstYear.bonus)) < 1e-9);
+  // Kalenderjahr 2026: Jan–Aug, also gut zwei Drittel
+  const y2026 = costs(series, tariffs, t('2026-01-01T00:00'), t('2027-01-01T00:00'));
+  assert.ok(Math.abs(y2026.bonus - 240 * (243 / 365.2425)) < 0.7, `Bonus 2026 ${y2026.bonus}`);
+  // Nach dem ersten Vertragsjahr kein Bonus mehr
+  assert.equal(costs(series, tariffs, t('2026-10-01T00:00'), t('2026-12-01T00:00')).bonus, 0);
 });

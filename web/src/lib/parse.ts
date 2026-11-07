@@ -52,6 +52,77 @@ export function parseDecimal(input: string, format: NumberFormat = 'de'): number
   return sign * Number(`${digits || '0'}.${fracPart || '0'}`);
 }
 
+/**
+ * Liest eine Zahl oder eine Rechnung mit + − × ÷ und Klammern, z. B. „12 * 54,90“,
+ * „12 x 54,90“, „649,8 / 12“ oder „(12 + 3) * 2“. Für Malnehmen gehen * x × · und „mal“,
+ * fürs Teilen / : ÷ und „durch“. Die Zahlen selbst liest parseDecimal.
+ */
+export function evaluateExpression(input: string, format: NumberFormat = 'de'): number | null {
+  const s = input
+    .trim()
+    .replace(/[€]/g, '')
+    .replace(/\bmal\b/gi, '*')
+    .replace(/\bdurch\b/gi, '/')
+    .replace(/\bplus\b/gi, '+')
+    .replace(/\bminus\b/gi, '-')
+    .replace(/[×xX·]/g, '*')
+    .replace(/[÷:]/g, '/')
+    .replace(/[−–]/g, '-');
+  if (s === '') return null;
+  // In Bausteine zerlegen: Zahlen (mit Punkt/Komma) und Rechenzeichen
+  const tokens = s.match(/[\d.,]+|[-+*/()]|\S/g);
+  if (!tokens) return null;
+  let pos = 0;
+  const peek = () => tokens[pos];
+  const fail = () => {
+    throw new Error('ungültig');
+  };
+  const factor = (): number => {
+    const t = tokens[pos++];
+    if (t === '-') return -factor();
+    if (t === '+') return factor();
+    if (t === '(') {
+      const v = sum();
+      if (tokens[pos++] !== ')') fail();
+      return v;
+    }
+    if (t === undefined || !/^[\d.,]+$/.test(t)) return fail();
+    const v = parseDecimal(t, format);
+    return v === null ? fail() : v;
+  };
+  const product = (): number => {
+    let v = factor();
+    while (peek() === '*' || peek() === '/') {
+      const op = tokens[pos++];
+      const r = factor();
+      if (op === '/' && r === 0) fail();
+      v = op === '*' ? v * r : v / r;
+    }
+    return v;
+  };
+  const sum = (): number => {
+    let v = product();
+    while (peek() === '+' || peek() === '-') {
+      const op = tokens[pos++];
+      const r = product();
+      v = op === '+' ? v + r : v - r;
+    }
+    return v;
+  };
+  try {
+    const v = sum();
+    if (pos !== tokens.length || !Number.isFinite(v)) return null;
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+/** true, wenn die Eingabe mehr ist als eine einzelne Zahl (mit Vorzeichen) */
+export function isExpression(input: string): boolean {
+  return /[\d.,)]\s*([-+*/:×xX·÷−–]|\bmal\b|\bdurch\b|\bplus\b|\bminus\b)/i.test(input.trim());
+}
+
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /**

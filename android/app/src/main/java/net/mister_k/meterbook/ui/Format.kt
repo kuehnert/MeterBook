@@ -33,6 +33,8 @@ private val dateFmt = DateTimeFormatter.ofPattern("dd.MM.yyyy", DE)
 private val dateTimeFmt = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", DE)
 
 fun date(iso: String?): String = iso?.let { dateFmt.format(Instant.parse(it).atZone(ZoneId.systemDefault())) } ?: "–"
+/** Letzter Tag eines Zeitraums, dessen Ende (exklusiv) iso ist – z. B. 01.01.2027 → 31.12.2026 */
+fun lastDay(endExclusive: String): String = dateFmt.format(Instant.parse(endExclusive).atZone(ZoneId.systemDefault()).minusDays(1))
 fun dateTime(iso: String?): String = iso?.let { dateTimeFmt.format(Instant.parse(it).atZone(ZoneId.systemDefault())) } ?: "–"
 
 fun daysAgo(n: Int?): String = when (n) {

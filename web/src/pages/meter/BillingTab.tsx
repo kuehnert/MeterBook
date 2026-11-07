@@ -63,6 +63,11 @@ export function BillingTab({ meter }: { meter: Meter }) {
                   })}
                   <Table.Td ta="right" className="tabular">
                     <Text size="sm">{eur(p.cost?.total)}</Text>
+                    {p.cost && p.cost.bonus > 0 && (
+                      <Text size="xs" c="green">
+                        inkl. Boni −{eur(p.cost.bonus)}
+                      </Text>
+                    )}
                     {p.current && p.forecastCost !== null && (
                       <Text size="xs" c="dimmed">
                         Prognose {eur(p.forecastCost)}

@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Card, Group, Modal, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { ActionIcon, Autocomplete, Button, Card, Group, Modal, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -12,13 +12,22 @@ import { DecimalInput } from '../../components/DecimalInput';
 import type { Advance, Meter, Tariff } from '../../lib/types';
 
 const DAY_FMT = 'YYYY-MM-DD';
+/** Übliche Boni bei deutschen Stromtarifen */
+const BONUS_LABELS = ['Neukundenbonus', 'Sofortbonus', 'Wechselbonus', 'Treuebonus'];
+type BonusDraft = { label: string; amount: number | '' };
+const emptyBonuses = (): BonusDraft[] => [
+  { label: 'Neukundenbonus', amount: '' },
+  { label: 'Sofortbonus', amount: '' },
+];
 
 interface TariffDraft {
   id?: string;
   name: string;
+  provider: string;
   validFrom: string;
-  basePricePerMonth: number | '';
+  basePricePerYear: number | '';
   components: Array<{ registerId: string; label: string; pricePerUnit: number | '' }>;
+  bonuses: BonusDraft[];
 }
 
 export function TariffsTab({ meter }: { meter: Meter }) {
@@ -37,8 +46,11 @@ export function TariffsTab({ meter }: { meter: Meter }) {
     const last = tariffs.data?.[tariffs.data.length - 1];
     return {
       name: '',
+      // Anbieter bleibt meist gleich; Boni gibt es nur beim Wechsel, daher leer
+      provider: last?.provider ?? '',
+      bonuses: emptyBonuses(),
       validFrom: dayjs().startOf('month').format(DAY_FMT),
-      basePricePerMonth: last?.basePricePerMonth ?? '',
+      basePricePerYear: last?.basePricePerYear ?? '',
       components: last
         ? last.components.map((c) => ({ registerId: c.registerId, label: c.label, pricePerUnit: toInput(c.pricePerUnit) }))
         : meter.registers.map((r) => ({
@@ -49,6 +61,8 @@ export function TariffsTab({ meter }: { meter: Meter }) {
     };
   };
 
+  const providers = [...new Set((tariffs.data ?? []).map((t) => t.provider).filter((x): x is string => !!x))];
+
   const fail = (e: unknown) => notifications.show({ color: 'red', message: e instanceof Error ? e.message : 'Fehler' });
 
   const saveTariff = async () => {
@@ -57,8 +71,12 @@ export function TariffsTab({ meter }: { meter: Meter }) {
     try {
       const body = {
         name: draft.name || undefined,
+        provider: draft.provider.trim() || undefined,
+        bonuses: draft.bonuses
+          .filter((b) => b.amount !== '' && Number(b.amount) > 0)
+          .map((b) => ({ label: b.label.trim() || 'Bonus', amount: Number(b.amount) })),
         validFrom: dayjs(draft.validFrom).startOf('day').toISOString(),
-        basePricePerMonth: Number(draft.basePricePerMonth || 0),
+        basePricePerYear: Number(draft.basePricePerYear || 0),
         components: draft.components
           .filter((c) => c.pricePerUnit !== '')
           .map((c) => ({ registerId: c.registerId, label: c.label || 'Arbeitspreis', pricePerUnit: fromPriceInput(Number(c.pricePerUnit), meter.unit) })),
@@ -127,7 +145,7 @@ export function TariffsTab({ meter }: { meter: Meter }) {
               <Table.Tr>
                 <Table.Th>Gültig ab</Table.Th>
                 <Table.Th>Arbeitspreise</Table.Th>
-                <Table.Th ta="right">Grundpreis / Monat</Table.Th>
+                <Table.Th ta="right">Grundpreis / Jahr</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -139,9 +157,9 @@ export function TariffsTab({ meter }: { meter: Meter }) {
                   <Table.Tr key={t.id}>
                     <Table.Td>
                       <Text size="sm">{date(t.validFrom)}</Text>
-                      {t.name && (
+                      {(t.provider || t.name) && (
                         <Text size="xs" c="dimmed">
-                          {t.name}
+                          {[t.provider, t.name].filter(Boolean).join(' · ')}
                         </Text>
                       )}
                     </Table.Td>
@@ -154,7 +172,12 @@ export function TariffsTab({ meter }: { meter: Meter }) {
                       ))}
                     </Table.Td>
                     <Table.Td ta="right" className="tabular">
-                      {eur(t.basePricePerMonth)}
+                      {eur(t.basePricePerYear)}
+                      {t.bonuses.map((b) => (
+                        <Text key={b.id} size="xs" c="green">
+                          − {eur(b.amount)} {b.label}
+                        </Text>
+                      ))}
                     </Table.Td>
                     <Table.Td>
                       <Group gap={2} justify="flex-end" wrap="nowrap">
@@ -165,8 +188,12 @@ export function TariffsTab({ meter }: { meter: Meter }) {
                             setDraft({
                               id: t.id,
                               name: t.name ?? '',
+                              provider: t.provider ?? '',
+                              bonuses: [0, 1].map((k) =>
+                                t.bonuses[k] ? { label: t.bonuses[k].label, amount: t.bonuses[k].amount } : emptyBonuses()[k],
+                              ),
                               validFrom: dayjs(t.validFrom).format(DAY_FMT),
-                              basePricePerMonth: t.basePricePerMonth,
+                              basePricePerYear: t.basePricePerYear,
                               components: t.components.map((c) => ({ registerId: c.registerId, label: c.label, pricePerUnit: toInput(c.pricePerUnit) })),
                             })
                           }
@@ -239,15 +266,58 @@ export function TariffsTab({ meter }: { meter: Meter }) {
         {draft && (
           <Stack>
             <DateField label="Gültig ab" value={draft.validFrom} onChange={(v) => setDraft({ ...draft, validFrom: v })} />
+            <Autocomplete
+              label="Anbieter"
+              placeholder="z. B. Stadtwerke"
+              data={providers}
+              value={draft.provider}
+              onChange={(v) => setDraft({ ...draft, provider: v })}
+            />
             <TextInput label="Bezeichnung" placeholder="z. B. Preisanpassung 2026" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.currentTarget.value })} />
             <DecimalInput
-              label="Grundpreis pro Monat"
-              value={draft.basePricePerMonth}
-              onChange={(v) => setDraft({ ...draft, basePricePerMonth: v === '' ? '' : Number(v) })}
+              label="Grundpreis pro Jahr"
+              description="Monatspreis? Einfach z. B. 12 * 9,95 eintippen – gerechnet wird beim Verlassen des Felds."
+              value={draft.basePricePerYear}
+              onChange={(v) => setDraft({ ...draft, basePricePerYear: v === '' ? '' : Number(v) })}
               decimalScale={2}
               min={0}
               rightSection={<Text size="sm" c="dimmed">€</Text>}
             />
+            <Text size="sm" fw={500}>
+              Boni
+            </Text>
+            {draft.bonuses.map((b, i) => (
+              <Group key={i} gap="xs" wrap="nowrap">
+                <Autocomplete
+                  aria-label={`Art des ${i + 1}. Bonus`}
+                  data={BONUS_LABELS}
+                  value={b.label}
+                  onChange={(v) => {
+                    const bonuses = [...draft.bonuses];
+                    bonuses[i] = { ...b, label: v };
+                    setDraft({ ...draft, bonuses });
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <DecimalInput
+                  aria-label={`Betrag des ${i + 1}. Bonus`}
+                  placeholder="0,00"
+                  value={b.amount}
+                  onChange={(v) => {
+                    const bonuses = [...draft.bonuses];
+                    bonuses[i] = { ...b, amount: v === '' ? '' : Number(v) };
+                    setDraft({ ...draft, bonuses });
+                  }}
+                  decimalScale={2}
+                  min={0}
+                  w={120}
+                  rightSection={<Text size="sm" c="dimmed">€</Text>}
+                />
+              </Group>
+            ))}
+            <Text size="xs" c="dimmed" mt={-8}>
+              Boni beim Anbieterwechsel werden über das erste Vertragsjahr ab „Gültig ab“ verteilt von den Kosten abgezogen. Leer lassen, wenn es keine gibt.
+            </Text>
             <Text size="sm" fw={500}>
               Arbeitspreise
             </Text>
