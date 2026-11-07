@@ -122,6 +122,7 @@ export async function buildWorkbook(meters: ExportMeter[]): Promise<Buffer> {
       }
       if (p.cost) {
         billing.addRow({ meter: m.data.meter.name, label: p.label, start: p.start, end: last, register: 'Grundpreis', cost: p.cost.base, status });
+        if (p.cost.bonus > 0) billing.addRow({ meter: m.data.meter.name, label: p.label, start: p.start, end: last, register: 'Boni', cost: -p.cost.bonus, status });
         const row = billing.addRow({ meter: m.data.meter.name, label: p.label, start: p.start, end: last, register: 'Summe', cost: p.cost.total, status });
         row.font = { bold: true };
         if (p.advances > 0) {

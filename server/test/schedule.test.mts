@@ -37,3 +37,19 @@ test('Ablesungen vom Vortag zählen', () => {
   assert.deepEqual(readSince(local(2026, 10, 26, 9)), local(2026, 10, 25));
   assert.deepEqual(readSince(local(2026, 11, 1, 9)), local(2026, 10, 31));
 });
+
+test('vierteljährlich: 1.1., 1.4., 1.7., 1.10. um 9 Uhr', () => {
+  assert.deepEqual(periodStart('QUARTERLY', local(2026, 11, 7, 12)), local(2026, 10, 1, 9));
+  assert.deepEqual(periodStart('QUARTERLY', local(2026, 10, 1, 8)), local(2026, 7, 1, 9));
+  assert.deepEqual(nextStart('QUARTERLY', local(2026, 11, 7)), local(2027, 1, 1, 9));
+});
+
+test('jährlich zum Abrechnungsbeginn des Zählers', () => {
+  // Heizperiode ab 1.8.
+  assert.deepEqual(periodStart('YEARLY', local(2026, 11, 7), { month: 8, day: 1 }), local(2026, 8, 1, 9));
+  assert.deepEqual(periodStart('YEARLY', local(2026, 7, 31), { month: 8, day: 1 }), local(2025, 8, 1, 9));
+  assert.deepEqual(nextStart('YEARLY', local(2026, 11, 7), { month: 8, day: 1 }), local(2027, 8, 1, 9));
+  // ohne Angabe: Kalenderjahr
+  assert.deepEqual(periodStart('YEARLY', local(2026, 11, 7)), local(2026, 1, 1, 9));
+  assert.equal(periodStart('OFF', local(2026, 11, 7)), null);
+});

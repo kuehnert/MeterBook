@@ -9,6 +9,7 @@ import {
   IconSettings,
   IconCamera,
   IconInbox,
+  IconInfoCircle,
   IconShieldCheck,
   IconUsers,
 } from '@tabler/icons-react';
@@ -28,6 +29,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { UsersPage } from './pages/UsersPage';
 import { BackupPage } from './pages/BackupPage';
 import { CapturePage } from './pages/CapturePage';
+import { AboutPage } from './pages/AboutPage';
 import { InboxPage, useInbox } from './pages/InboxPage';
 import { Badge } from '@mantine/core';
 import type { Health } from './lib/types';
@@ -115,6 +117,7 @@ function Shell({ user }: { user: User }) {
           {link('/settings', 'Einstellungen', <IconSettings size={18} />)}
           {user.role === 'ADMIN' && link('/users', 'Nutzer', <IconUsers size={18} />)}
           {user.role === 'ADMIN' && link('/backup', 'Sicherung', <IconShieldCheck size={18} />)}
+          {link('/ueber', 'Über MeterBook', <IconInfoCircle size={18} />)}
         </AppShell.Section>
         <AppShell.Section>
           <NavLink label="Abmelden" leftSection={<IconLogout size={18} />} onClick={() => void logout()} />
@@ -129,6 +132,7 @@ function Shell({ user }: { user: User }) {
           <Route path="/meters/:id/*" element={<MeterPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/ueber" element={<AboutPage />} />
           {user.role === 'ADMIN' && <Route path="/users" element={<UsersPage />} />}
           {user.role === 'ADMIN' && <Route path="/backup" element={<BackupPage />} />}
           <Route path="*" element={<Navigate to="/" replace />} />

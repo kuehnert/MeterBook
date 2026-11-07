@@ -43,12 +43,11 @@ export function resetMail(to: string, name: string, token: string): Mail {
   );
 }
 
-export function reminderMail(to: string, name: string, meters: string[], interval: 'WEEKLY' | 'MONTHLY'): Mail {
-  const when = interval === 'WEEKLY' ? 'wöchentliche' : 'monatliche';
+export function reminderMail(to: string, name: string, meters: string[]): Mail {
   return layout(
     to,
     meters.length === 1 ? `Zeit zum Ablesen: ${meters[0]}` : `Zeit zum Ablesen: ${meters.length} Zähler`,
-    [`Hallo ${name},`, `das ist deine ${when} Erinnerung. Diese Zähler warten auf eine Ablesung:`, meters.map((m) => `• ${m}`).join('\n')],
+    [`Hallo ${name},`, 'das ist deine Erinnerung ans Ablesen. Diese Zähler warten auf eine Ablesung:', meters.map((m) => `• ${m}`).join('\n')],
     { label: 'Jetzt ablesen', url: `${config.publicUrl}/ablesen` },
     'Die Erinnerung kannst du in MeterBook unter „Einstellungen“ ändern, überspringen oder abschalten.',
   );

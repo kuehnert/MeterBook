@@ -16,6 +16,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import net.mister_k.meterbook.ui.AboutScreen
 import net.mister_k.meterbook.ui.CaptureScreen
 import net.mister_k.meterbook.ui.CaptureViewModel
 import net.mister_k.meterbook.ui.HomeScreen
@@ -116,7 +117,10 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("settings") {
-                            SettingsScreen(app, onBack = { nav.popBackStack() })
+                            SettingsScreen(app, onBack = { nav.popBackStack() }, onAbout = { nav.navigate("about") })
+                        }
+                        composable("about") {
+                            AboutScreen(app, onBack = { nav.popBackStack() })
                         }
                     }
                 }

@@ -1,19 +1,5 @@
 import { Type } from 'class-transformer';
-import {
-  ArrayMinSize,
-  IsArray,
-  IsBoolean,
-  IsDateString,
-  IsIn,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-  MinLength,
-  ValidateNested,
-} from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
 
 export const MEDIA = ['ELECTRICITY', 'WATER', 'GAS', 'HEAT', 'OTHER'] as const;
 export const ICONS = ['ELECTRICITY', 'HEATING', 'WATER', 'GAS', 'HEAT', 'OTHER'] as const;
@@ -142,19 +128,37 @@ export class TariffComponentDto {
   pricePerUnit: number;
 }
 
+export class TariffBonusDto {
+  @IsString()
+  @MinLength(1)
+  label: string;
+  @IsNumber()
+  @Min(0)
+  amount: number;
+}
+
 export class TariffDto {
   @IsOptional()
   @IsString()
   name?: string;
+  @IsOptional()
+  @IsString()
+  provider?: string;
   @IsDateString({}, { message: 'Ungültiges Datum' })
   validFrom: string;
   @IsNumber()
   @Min(0)
-  basePricePerMonth: number;
+  basePricePerYear: number;
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => TariffComponentDto)
   components: TariffComponentDto[];
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(2, { message: 'Höchstens zwei Boni je Tarif' })
+  @ValidateNested({ each: true })
+  @Type(() => TariffBonusDto)
+  bonuses?: TariffBonusDto[];
 }
 
 export class AdvancePaymentDto {

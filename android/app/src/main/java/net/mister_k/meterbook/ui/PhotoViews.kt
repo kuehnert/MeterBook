@@ -18,8 +18,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ZoomIn
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +47,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.mister_k.meterbook.MeterBookApp
 import java.io.File
 
 /** Lädt ein Foto verkleinert (max. ca. 2000 px), damit es flott angezeigt werden kann. */
@@ -105,6 +109,39 @@ fun DigitsPreview(file: File, boxes: List<List<Double>>) {
         }
     }
     if (zoom) ZoomDialog(bmp) { zoom = false }
+}
+
+/**
+ * Foto einer Ablesung vom Server laden und im Vollbild zeigen (zoombar). Einmal geladene
+ * Fotos bleiben im Cache, damit sie beim nächsten Antippen sofort da sind.
+ */
+@Composable
+fun RemotePhotoDialog(app: MeterBookApp, photoId: String, onClose: () -> Unit) {
+    val loaded by produceState<Result<File>?>(null, photoId) {
+        value = runCatching {
+            val f = File(app.cacheDir, "view_$photoId.jpg")
+            if (f.exists() && f.length() > 0) f else app.api.downloadPhoto(photoId, f)
+        }
+    }
+    val file = loaded?.getOrNull()
+    val bmp = file?.let { rememberBitmap(it) }
+    if (bmp != null) {
+        ZoomDialog(bmp, onClose)
+        return
+    }
+    Dialog(onDismissRequest = onClose) {
+        Surface(shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (loaded?.isFailure == true) {
+                    Text("Das Foto ist nicht mehr verfügbar oder es gibt gerade keine Verbindung zum Server.", style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = onClose, modifier = Modifier.padding(top = 8.dp)) { Text("Schließen") }
+                } else {
+                    CircularProgressIndicator()
+                    Text("Foto wird geladen …", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp))
+                }
+            }
+        }
+    }
 }
 
 /** Ganzes Foto im Vollbild, mit zwei Fingern zoom- und verschiebbar, Doppeltipp = Zoom. */

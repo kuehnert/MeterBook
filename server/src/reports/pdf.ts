@@ -179,6 +179,7 @@ export function buildPdf(title: string, userName: string, sections: PdfMeterSect
     });
     if (period.cost) {
       rows.push(['Grundpreis', '', eur(period.cost.base), '']);
+      if (period.cost.bonus > 0) rows.push(['Boni', '', eur(-period.cost.bonus), 'anteilig fürs erste Vertragsjahr']);
       rows.push([period.current ? 'Summe bisher' : 'Summe', `${nf(period.total, 1)} ${m.unit}`, eur(period.cost.total), period.cost.missingTariff ? 'Tarif fehlt teilweise' : '']);
     }
     table(

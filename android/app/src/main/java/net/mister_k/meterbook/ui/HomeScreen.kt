@@ -22,6 +22,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -42,11 +43,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import net.mister_k.meterbook.BuildConfig
 import net.mister_k.meterbook.MeterBookApp
 import net.mister_k.meterbook.data.Overview
 import net.mister_k.meterbook.work.SyncWorker
@@ -99,6 +104,13 @@ fun HomeScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("MeterBook")
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            BuildConfig.VERSION_NAME,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
                         env?.let {
                             Spacer(Modifier.width(8.dp))
                             Badge(containerColor = MaterialTheme.colorScheme.tertiary) { Text(it, Modifier.padding(horizontal = 4.dp)) }
@@ -182,70 +194,94 @@ private fun Banner(icon: androidx.compose.ui.graphics.vector.ImageVector, text: 
     }
 }
 
-/** Kompakte Karte: Kopfzeile mit Foto-Knopf, darunter die letzten zwei Ablesungen als Tabelle. */
+/** Verbrauch je nach Größe mit sinnvollen Nachkommastellen (Wasser in m³ braucht mehr) */
+private fun amount(v: Double): String = num(v, if (v < 1) 2 else if (v < 100) 1 else 0)
+
+private val RECENT_SHORT = mapOf("Woche" to "Woche", "Monat" to "Monat", "Vierteljahr" to "Quartal", "Jahr" to "Jahr")
+
+/**
+ * Kompakte Karte – vier Zähler sollen ohne Scrollen auf einen Handybildschirm passen:
+ * Kopfzeile mit Foto-Knopf, der Verbrauch der letzten Woche/Monat/Quartal/Jahr und eine
+ * Zeile zur laufenden Abrechnungsperiode.
+ */
 @Composable
 private fun MeterCard(o: Overview, onCapture: () -> Unit, onOpen: () -> Unit) {
     val m = o.meter
     val p = o.currentPeriod
     val stale = (o.daysSinceLastReading ?: Int.MAX_VALUE) > 35
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val recent = o.recentConsumption.filter { it.total != null }
     Card(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
-        Column(Modifier.padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Icon(meterIcon(m), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(m.name, style = MaterialTheme.typography.titleMedium)
+                    Text(m.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
                     Text(
                         daysAgo(o.daysSinceLastReading),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (stale) MaterialTheme.colorScheme.error else muted,
+                        maxLines = 1,
                     )
                 }
-                FilledTonalIconButton(onClick = onCapture) {
+                FilledIconButton(onClick = onCapture) {
                     Icon(Icons.Outlined.AddAPhoto, "${m.name} ablesen")
                 }
             }
 
-            // Tabelle: Datum | Zählwerke
-            Column(Modifier.padding(top = 8.dp, end = 6.dp)) {
-                Row {
-                    Cell("Datum", Modifier.weight(1f), header = true, start = true)
-                    m.registers.forEach { r -> Cell(if (m.registers.size > 1) r.name else "Stand (${m.unit})", Modifier.weight(1.2f), header = true) }
-                }
-                HorizontalDivider(Modifier.padding(vertical = 2.dp))
-                if (o.recent.isEmpty()) {
-                    Text("Noch keine Ablesung", style = MaterialTheme.typography.bodySmall, color = muted)
-                }
-                o.recent.forEach { g ->
-                    Row {
-                        Cell(date(g.readAt), Modifier.weight(1f), start = true)
-                        m.registers.forEach { r -> Cell(num(g.values[r.id], r.decimals), Modifier.weight(1.2f), bold = g === o.recent.first()) }
+            if (recent.isEmpty()) {
+                Text(
+                    if (o.recent.isEmpty()) "Noch keine Ablesung" else "Für Verbrauchswerte werden mehr Ablesungen gebraucht.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = muted,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            } else {
+                // Verbrauch der letzten Woche, des letzten Monats, Quartals und Jahres (in der Einheit des Zählers)
+                Row(Modifier.padding(top = 4.dp, end = 6.dp)) {
+                    recent.forEach { r ->
+                        Column(Modifier.weight(1f)) {
+                            Text(RECENT_SHORT[r.label] ?: r.label, style = MaterialTheme.typography.labelSmall, color = muted, maxLines = 1)
+                            Text(
+                                buildAnnotatedString {
+                                    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
+                                        append((if (r.estimated) "≈" else "") + amount(r.total!!))
+                                    }
+                                    withStyle(SpanStyle(fontSize = MaterialTheme.typography.labelSmall.fontSize, color = muted)) { append(" ${m.unit}") }
+                                },
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                            )
+                        }
                     }
                 }
             }
 
             if (p != null && p.total != null) {
-                Text(
-                    "Periode ${p.label}: ${num(p.total, 0)} ${m.unit}" + (p.cost?.let { " · ${eur(it.total)}" } ?: ""),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = muted,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
+                // Kleine Tabelle: Bezeichnung | Verbrauch | Kosten – Zahlen rechtsbündig untereinander
+                val hasCost = p.cost != null || p.forecastCost != null
+                Column(Modifier.padding(top = 6.dp, end = 8.dp)) {
+                    PeriodRow("${p.label} bisher", "${amount(p.total)} ${m.unit}", p.cost?.let { eur(it.total) }, hasCost, bold = false)
+                    p.forecastTotal?.let {
+                        PeriodRow("Prognose bis ${lastDay(p.end)}", "${amount(it)} ${m.unit}", p.forecastCost?.let { c -> eur(c) }, hasCost, bold = true)
+                    }
+                }
             }
         }
     }
 }
 
+/** Zeile der Periodentabelle; feste Spaltenbreiten, damit kWh und € genau untereinander stehen */
 @Composable
-private fun Cell(text: String, modifier: Modifier, header: Boolean = false, start: Boolean = false, bold: Boolean = false) {
-    Text(
-        text,
-        modifier = modifier.padding(vertical = 1.dp),
-        style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium,
-        color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-        fontWeight = if (bold) FontWeight.SemiBold else null,
-        textAlign = if (start) TextAlign.Start else TextAlign.End,
-        maxLines = 1,
-    )
+private fun PeriodRow(label: String, amount: String, cost: String?, hasCost: Boolean, bold: Boolean) {
+    val style = MaterialTheme.typography.bodySmall
+    val weight = if (bold) FontWeight.SemiBold else null
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(amount, style = style, fontWeight = weight, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(88.dp))
+        if (hasCost) {
+            Text(cost ?: "–", style = style, fontWeight = weight, textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.width(80.dp))
+        }
+    }
 }

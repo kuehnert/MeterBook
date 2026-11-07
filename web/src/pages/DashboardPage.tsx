@@ -8,7 +8,7 @@ import { ICON_COLOR, MediumIcon, iconOf } from '../components/MediumIcon';
 import { ReadingModal } from '../components/ReadingModal';
 import { ReminderAlert } from '../components/Reminder';
 import { get } from '../lib/api';
-import { daysAgo, eur, lastDay, num } from '../lib/format';
+import { date, daysAgo, eur, lastDay, num } from '../lib/format';
 import type { Meter, Overview } from '../lib/types';
 
 export function DashboardPage() {
@@ -111,20 +111,7 @@ function MeterCard({ o, onCapture }: { o: Overview; onCapture: () => void }) {
         </Badge>
       </Group>
 
-      <Group gap="xl" mb="sm">
-        {m.registers.map((r) => (
-          <div key={r.id}>
-            <Text size="xs" c="dimmed">
-              {m.registers.length > 1 ? r.name : 'Stand'}
-            </Text>
-            <Text fw={600} size="lg" className="tabular">
-              {r.lastReading ? num(r.lastReading.value, r.decimals) : '–'} <Text span size="sm" c="dimmed">{m.unit}</Text>
-            </Text>
-          </div>
-        ))}
-      </Group>
-
-      <Divider mb="sm" />
+      <RecentBlock o={o} />
 
       {p ? (
         <Stack gap={4}>
@@ -181,14 +168,67 @@ function MeterCard({ o, onCapture }: { o: Overview; onCapture: () => void }) {
         </Text>
       )}
 
+      <Divider my="sm" />
+      <Group gap="xl">
+        {m.registers.map((r) => (
+          <div key={r.id}>
+            <Text size="xs" c="dimmed">
+              {m.registers.length > 1 ? `Stand ${r.name}` : 'Stand'}
+            </Text>
+            <Text size="sm" className="tabular">
+              {r.lastReading ? num(r.lastReading.value, r.decimals) : '–'} <Text span size="xs" c="dimmed">{m.unit}</Text>
+            </Text>
+          </div>
+        ))}
+      </Group>
+
       <Group mt="md" grow>
-        <Button leftSection={<IconCamera size={16} />} onClick={onCapture}>
-          Ablesen
-        </Button>
-        <Button variant="default" component={Link} to={`/meters/${m.id}`}>
+        <Button component={Link} to={`/meters/${m.id}`}>
           Details
+        </Button>
+        <Button variant="default" leftSection={<IconCamera size={16} />} onClick={onCapture}>
+          Ablesen
         </Button>
       </Group>
     </Card>
+  );
+}
+
+/** Verbrauch je nach Größe mit sinnvollen Nachkommastellen (Wasser in m³ braucht mehr) */
+function amount(v: number): string {
+  return num(v, v < 1 ? 2 : v < 100 ? 1 : 0);
+}
+
+const RECENT_LABEL: Record<string, string> = {
+  Woche: 'Letzte Woche',
+  Monat: 'Letzter Monat',
+  Vierteljahr: 'Letztes Vierteljahr',
+  Jahr: 'Letztes Jahr',
+};
+
+/** Aktueller Verbrauch: letzte Woche, letzter Monat, letztes Vierteljahr, letztes Jahr */
+function RecentBlock({ o }: { o: Overview }) {
+  const items = (o.recentConsumption ?? []).filter((r) => r.total !== null);
+  if (items.length === 0) return null;
+  return (
+    <Stack gap={4} mb="sm">
+      <Text size="xs" c="dimmed">
+        Verbrauch bis zur letzten Ablesung am {date(items[0].to)}
+      </Text>
+      <SimpleGrid cols={2} spacing="xs" verticalSpacing={6}>
+        {items.map((r) => (
+          <div key={r.label}>
+            <Text size="xs" c="dimmed">
+              {RECENT_LABEL[r.label] ?? r.label}
+            </Text>
+            <Text fw={600} size="lg" className="tabular" title={r.estimated ? 'geschätzt – Ablesungen liegen weit auseinander' : undefined}>
+              {r.estimated ? '≈ ' : ''}
+              {amount(r.total!)} <Text span size="sm" c="dimmed">{o.meter.unit}</Text>
+            </Text>
+          </div>
+        ))}
+      </SimpleGrid>
+      <Divider mt={6} />
+    </Stack>
   );
 }

@@ -8,7 +8,14 @@ import { PrismaService } from '../prisma.service';
 
 export const EXPORT_FORMAT = 'meterbook-export';
 export const BACKUP_FORMAT = 'meterbook-backup';
-const VERSION = 1;
+/** 2: Tarife mit Grundpreis pro Jahr (vorher pro Monat), Anbieter und Boni */
+const VERSION = 2;
+
+/** Grundpreis pro Jahr – ältere Sicherungen enthalten noch den Monatspreis */
+function baseYear(t: { basePricePerYear?: string; basePricePerMonth?: string }): string {
+  if (t.basePricePerYear !== undefined) return t.basePricePerYear;
+  return String(Math.round(Number(t.basePricePerMonth ?? 0) * 12 * 10_000) / 10_000);
+}
 
 type Tx = Prisma.TransactionClient;
 
@@ -46,6 +53,8 @@ export interface MeterExport {
   ocrHint: string | null;
   billingStartMonth: number;
   billingStartDay: number;
+  /** eigener Ablese-Rhythmus, null = Standard */
+  reminderInterval?: string | null;
   archived: boolean;
   sortOrder: number;
   /** key = Bezug innerhalb der Datei (alte ID) */
@@ -63,7 +72,15 @@ export interface MeterExport {
   /** Fotos der Ablesungen; Datei liegt im Archiv unter photos/<key>.jpg */
   photos?: PhotoExport[];
   exchanges: Array<{ register: string; exchangedAt: string; oldFinalValue: string; newInitialValue: string; note: string | null }>;
-  tariffs: Array<{ name: string | null; validFrom: string; basePricePerMonth: string; components: Array<{ register: string; label: string; pricePerUnit: string }> }>;
+  tariffs: Array<{
+    name: string | null;
+    validFrom: string;
+    basePricePerYear?: string;
+    /** nur in Sicherungen bis Version 1 */
+    basePricePerMonth?: string;
+    provider?: string | null;
+    bonuses?: Array<{ label: string; amount: string }>;
+    components: Array<{ register: string; label: string; pricePerUnit: string }> }>;
   advances: Array<{ validFrom: string; amountPerMonth: string; note: string | null }>;
 }
 
@@ -130,7 +147,7 @@ export class DataTransferService {
             exchanges: { orderBy: { exchangedAt: 'asc' } },
           },
         },
-        tariffs: { orderBy: { validFrom: 'asc' }, include: { components: true } },
+        tariffs: { orderBy: { validFrom: 'asc' }, include: { components: true, bonuses: true } },
         advancePayments: { orderBy: { validFrom: 'asc' } },
       },
     });
@@ -160,6 +177,7 @@ export class DataTransferService {
         ocrHint: m.ocrHint,
         billingStartMonth: m.billingStartMonth,
         billingStartDay: m.billingStartDay,
+        reminderInterval: m.reminderInterval,
         archived: m.archived,
         sortOrder: m.sortOrder,
         registers: m.registers.map((r) => ({ key: r.id, name: r.name, code: r.code, decimals: r.decimals, sortOrder: r.sortOrder })),
@@ -188,7 +206,9 @@ export class DataTransferService {
         tariffs: m.tariffs.map((t) => ({
           name: t.name,
           validFrom: t.validFrom.toISOString(),
-          basePricePerMonth: t.basePricePerMonth.toString(),
+          basePricePerYear: t.basePricePerYear.toString(),
+          provider: t.provider,
+          bonuses: t.bonuses.map((b) => ({ label: b.label, amount: b.amount.toString() })),
           components: t.components.map((c) => ({ register: c.registerId, label: c.label, pricePerUnit: c.pricePerUnit.toString() })),
         })),
         advances: m.advancePayments.map((a) => ({ validFrom: a.validFrom.toISOString(), amountPerMonth: a.amountPerMonth.toString(), note: a.note })),
@@ -332,6 +352,7 @@ export class DataTransferService {
             ocrHint: m.ocrHint,
             billingStartMonth: m.billingStartMonth,
             billingStartDay: m.billingStartDay,
+            reminderInterval: m.reminderInterval ?? null,
             archived: m.archived,
             sortOrder: m.sortOrder,
           },
@@ -418,7 +439,9 @@ export class DataTransferService {
             meterId,
             name: t.name,
             validFrom,
-            basePricePerMonth: t.basePricePerMonth,
+            basePricePerYear: baseYear(t),
+            provider: t.provider ?? null,
+            bonuses: { create: (t.bonuses ?? []).map((b) => ({ label: b.label, amount: b.amount })) },
             components: { create: t.components.map((c) => ({ registerId: reg(c.register), label: c.label, pricePerUnit: c.pricePerUnit })) },
           },
         });

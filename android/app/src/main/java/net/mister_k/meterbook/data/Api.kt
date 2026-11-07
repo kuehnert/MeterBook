@@ -135,6 +135,16 @@ class Api(private val session: Session) {
 
     suspend fun reminder(): ReminderState = get("/me/reminder")
 
+    /** Eigener Rhythmus für einen Zähler; null = Standard */
+    suspend fun setMeterReminder(meterId: String, interval: String?): ReminderState =
+        json.decodeFromString(
+            execute({
+                // null ausdrücklich mitschicken, damit der Server „Standard“ setzt
+                val body = if (interval == null) "{\"interval\":null}" else json.encodeToString(MeterReminderIn(interval))
+                Request.Builder().url(url("/me/reminder/meters/$meterId")).put(body.toRequestBody(jsonType))
+            }),
+        )
+
     suspend fun updateReminder(settings: ReminderSettingsIn): ReminderState =
         json.decodeFromString(execute({ Request.Builder().url(url("/me/reminder")).put(json.encodeToString(settings).toRequestBody(jsonType)) }))
 

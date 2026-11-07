@@ -61,6 +61,11 @@ export interface SeriesBucket {
   previousYearTotal: number | null;
   cost: number | null;
   perDay: number | null;
+  current: boolean;
+  forecastTotal: number | null;
+  forecastCost: number | null;
+  band: number;
+  period: string | null;
 }
 
 export interface BillingPeriod {
@@ -71,7 +76,7 @@ export interface BillingPeriod {
   registers: Record<string, RegisterValue & { cost: number | null }>;
   total: number | null;
   forecastTotal: number | null;
-  cost: { energy: number; base: number; total: number; missingTariff: boolean } | null;
+  cost: { energy: number; base: number; bonus: number; total: number; missingTariff: boolean } | null;
   forecastCost: number | null;
   advances: number;
   forecastAdvances: number | null;
@@ -85,15 +90,30 @@ export interface Overview {
   currentPeriod: BillingPeriod | null;
   previousPeriod: BillingPeriod | null;
   nextBillingStart: string;
+  /** Verbrauch der letzten Woche, des letzten Monats, Vierteljahres und Jahres (bis zur letzten Ablesung) */
+  recentConsumption: RecentConsumption[];
   daysSinceLastReading: number | null;
+}
+
+export interface RecentConsumption {
+  label: string;
+  from: string;
+  to: string;
+  total: number | null;
+  estimated: boolean;
 }
 
 export interface Tariff {
   id: string;
   name: string | null;
+  /** Anbieter bzw. Versorger */
+  provider: string | null;
   validFrom: string;
-  basePricePerMonth: number;
+  /** € pro Jahr, zeitanteilig verteilt */
+  basePricePerYear: number;
   components: Array<{ id: string; registerId: string; label: string; pricePerUnit: number }>;
+  /** bis zu zwei Boni (€), verteilt übers erste Vertragsjahr abgezogen */
+  bonuses: Array<{ id: string; label: string; amount: number }>;
 }
 
 export interface Advance {
@@ -149,7 +169,17 @@ export interface Health {
   mail?: 'smtp' | 'outbox';
 }
 
-export type ReminderInterval = 'OFF' | 'WEEKLY' | 'MONTHLY';
+export type ReminderInterval = 'OFF' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+
+export interface MeterReminder {
+  id: string;
+  name: string;
+  /** eigener Rhythmus; null = Standard */
+  interval: ReminderInterval | null;
+  effective: ReminderInterval;
+  current: string | null;
+  next: string | null;
+}
 
 export interface ReminderState {
   interval: ReminderInterval;
@@ -160,6 +190,9 @@ export interface ReminderState {
   skipped: boolean;
   due: { id: string; name: string }[];
   active: boolean;
+  /** mindestens ein Zähler wird erinnert */
+  enabled: boolean;
+  meters: MeterReminder[];
 }
 
 /** Foto im Eingang: hochgeladen, aber noch keine Ablesung daraus gespeichert */

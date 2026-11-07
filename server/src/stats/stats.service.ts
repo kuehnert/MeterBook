@@ -8,6 +8,7 @@ import {
   bucketLabel,
   bucketStart,
   buckets,
+  calendarDaysBetween,
   consumption,
   costs,
   nextBucket,
@@ -33,7 +34,50 @@ export interface SeriesBucket {
   previousYearTotal: number | null;
   cost: number | null;
   perDay: number | null;
+  /** Laufende Periode (enthält „jetzt“) */
+  current: boolean;
+  /** Hochrechnung auf die volle Periode (nur laufende Periode) */
+  forecastTotal: number | null;
+  forecastCost: number | null;
+  /** Farbgruppe 0/1: wechselt mit der übergeordneten Periode (Tage → Woche, Wochen → Monat, Monate → Abrechnungsjahr, sonst jeder Balken) */
+  band: number;
+  /** Nur Monate: Abrechnungsjahr, zu dem der Monat gehört – „2025“ oder z. B. „2025/26“ bei Heizperioden */
+  period: string | null;
 }
+
+/** Schlüssel der übergeordneten Periode für den Farbwechsel */
+function groupKey(start: number, g: Granularity, index: number, billing: { month: number; day: number }): string | number {
+  const d = new Date(start);
+  switch (g) {
+    case 'day':
+      return bucketStart(start, 'week');
+    case 'week':
+      return `${d.getFullYear()}-${d.getMonth()}`;
+    case 'month':
+      // Monate gehören zum Abrechnungsjahr (bei 1.1. = Kalenderjahr, sonst z. B. Heizperiode ab 1.8.)
+      return bucketStart(start, 'billing', billing);
+    default:
+      return index;
+  }
+}
+
+/** Verbrauch über einen zurückliegenden Zeitraum (bis zur letzten Ablesung) */
+export interface RecentConsumption {
+  /** Kurzname für die Anzeige */
+  label: string;
+  from: Date;
+  to: Date;
+  /** Summe aller Zählwerke; null, wenn die Ablesungen den Zeitraum nicht abdecken */
+  total: number | null;
+  estimated: boolean;
+}
+
+const RECENT: Array<{ label: string; back: (d: Date) => Date }> = [
+  { label: 'Woche', back: (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7, d.getHours(), d.getMinutes()) },
+  { label: 'Monat', back: (d) => new Date(d.getFullYear(), d.getMonth() - 1, d.getDate(), d.getHours(), d.getMinutes()) },
+  { label: 'Vierteljahr', back: (d) => new Date(d.getFullYear(), d.getMonth() - 3, d.getDate(), d.getHours(), d.getMinutes()) },
+  { label: 'Jahr', back: (d) => new Date(d.getFullYear() - 1, d.getMonth(), d.getDate(), d.getHours(), d.getMinutes()) },
+];
 
 export interface BillingPeriod {
   start: Date;
@@ -44,7 +88,7 @@ export interface BillingPeriod {
   total: number | null;
   /** Hochrechnung auf die volle Periode (nur laufende Periode) */
   forecastTotal: number | null;
-  cost: { energy: number; base: number; total: number; missingTariff: boolean } | null;
+  cost: { energy: number; base: number; bonus: number; total: number; missingTariff: boolean } | null;
   forecastCost: number | null;
   advances: number;
   forecastAdvances: number | null;
@@ -88,12 +132,28 @@ export class StatsService {
       year: 20 * 365 * DAY,
       billing: 20 * 365 * DAY,
     };
-    const to = toRaw ? new Date(toRaw).getTime() : Date.now();
-    const from = Math.max(range.first, fromRaw ? new Date(fromRaw).getTime() : to - defaultSpan[g]);
+    const now = Date.now();
+    const to = toRaw ? new Date(toRaw).getTime() : now;
+    // Tage: ab Montag der vorletzten Kalenderwoche (zwei volle Wochen + die laufende)
+    const defaultFrom =
+      g === 'day'
+        ? (() => {
+            const d = new Date(bucketStart(to, 'week'));
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate() - 14).getTime();
+          })()
+        : to - defaultSpan[g];
+    const from = Math.max(range.first, fromRaw ? new Date(fromRaw).getTime() : defaultFrom);
     const billing = this.billing(data);
     const regIds = data.meter.registers.map((r) => r.id);
 
-    return buckets(from, to, g, billing).map(({ start, end }) => {
+    let band = 0;
+    let prevKey: string | number | null = null;
+    return buckets(from, to, g, billing).map(({ start, end }, index) => {
+      const key = groupKey(start, g, index, billing);
+      if (prevKey !== null && key !== prevKey) band = 1 - band;
+      prevKey = key;
+      const current = start <= now && now < end;
+      let forecastTotal: number | null = null;
       const registers: Record<string, RegisterValue> = {};
       let total: number | null = null;
       let prevTotal: number | null = null;
@@ -107,7 +167,15 @@ export class StatsService {
         if (c) total = (total ?? 0) + c.value;
         const p = consumption(data.series[id], prevStart, prevEnd);
         if (p && !p.partial) prevTotal = (prevTotal ?? 0) + p.value;
+        if (current) {
+          const f = consumption(data.series[id], start, end, { extrapolate: true });
+          if (f) forecastTotal = (forecastTotal ?? 0) + f.value;
+        }
       }
+      const forecastCost =
+        current && data.tariffs.length > 0 && forecastTotal !== null
+          ? costs(data.series, data.tariffs, Math.max(start, range.first), end, { extrapolate: true })
+          : null;
       const covered = Math.min(end, range.last) - Math.max(start, range.first);
       const cost =
         data.tariffs.length > 0 && total !== null
@@ -122,6 +190,11 @@ export class StatsService {
         previousYearTotal: prevTotal === null ? null : round(prevTotal, 3),
         cost: cost && !cost.missingTariff ? round(cost.total, 2) : null,
         perDay: total !== null && covered > 0 ? round(total / (covered / DAY), 3) : null,
+        current,
+        forecastTotal: forecastTotal === null ? null : round(Math.max(forecastTotal, total ?? 0), 3),
+        forecastCost: forecastCost && !forecastCost.missingTariff ? round(forecastCost.total, 2) : null,
+        band,
+        period: g === 'month' ? bucketLabel(bucketStart(start, 'billing', billing), 'billing') : null,
       };
     });
   }
@@ -189,6 +262,7 @@ export class StatsService {
             ? {
                 energy: round(actualCost.energy, 2),
                 base: round(actualCost.base, 2),
+                bonus: round(actualCost.bonus, 2),
                 total: round(actualCost.total, 2),
                 missingTariff: actualCost.missingTariff,
               }
@@ -220,6 +294,27 @@ export class StatsService {
           yearRate[r.id] = rate === null ? null : round(rate * DAY, 3);
         }
         const nextBillingStart = nextBucket(bucketStart(now, 'billing', this.billing(data)), 'billing');
+        const range = this.range(data);
+        // Zeiträume enden bei der letzten Ablesung – danach gibt es keine echten Werte
+        const end = range ? Math.min(now, range.last) : null;
+        const recentConsumption: RecentConsumption[] =
+          end === null
+            ? []
+            : RECENT.map(({ label, back }) => {
+                const from = back(new Date(end)).getTime();
+                let total: number | null = 0;
+                let estimated = false;
+                for (const r of data.meter.registers) {
+                  const c = consumption(data.series[r.id], from, end);
+                  if (!c || c.partial) {
+                    total = null;
+                    break;
+                  }
+                  total += c.value;
+                  estimated ||= c.estimated;
+                }
+                return { label, from: new Date(from), to: new Date(end), total: total === null ? null : round(total, 3), estimated };
+              });
         return {
           meter: m,
           recent: await this.meters.recentReadings(data.meter, 2),
@@ -228,7 +323,8 @@ export class StatsService {
           currentPeriod: current,
           previousPeriod: previous,
           nextBillingStart: new Date(nextBillingStart),
-          daysSinceLastReading: m.lastReadAt ? Math.floor((now - new Date(m.lastReadAt).getTime()) / DAY) : null,
+          recentConsumption,
+          daysSinceLastReading: m.lastReadAt ? calendarDaysBetween(new Date(m.lastReadAt).getTime(), now) : null,
         };
       }),
     );

@@ -1,4 +1,4 @@
-import { Alert, Anchor, Badge, Button, Card, Group, SegmentedControl, Stack, Switch, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Card, Divider, Group, Select, Stack, Switch, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconBell, IconCamera } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,8 +7,27 @@ import { Link } from 'react-router';
 import { get, post, put } from '../lib/api';
 import type { ReminderInterval, ReminderState } from '../lib/types';
 
+export const INTERVAL_LABEL: Record<ReminderInterval, string> = {
+  OFF: 'Aus',
+  WEEKLY: 'Wöchentlich',
+  MONTHLY: 'Monatlich',
+  QUARTERLY: 'Vierteljährlich',
+  YEARLY: 'Jährlich',
+};
+
+const INTERVAL_HINT: Record<ReminderInterval, string> = {
+  OFF: 'Keine Erinnerung.',
+  WEEKLY: 'Jeden Montag um 9 Uhr.',
+  MONTHLY: 'Am 1. jedes Monats um 9 Uhr.',
+  QUARTERLY: 'Am 1. Januar, April, Juli und Oktober um 9 Uhr.',
+  YEARLY: 'Einmal im Jahr zum Abrechnungsbeginn des Zählers, 9 Uhr.',
+};
+
+const INTERVALS = (Object.keys(INTERVAL_LABEL) as ReminderInterval[]).map((v) => ({ value: v, label: INTERVAL_LABEL[v] }));
+
 /** z. B. „Montag, 26. Oktober, 9 Uhr“ */
-export const reminderDate = (iso: string) => dayjs(iso).format('dddd, D. MMMM, H [Uhr]');
+export const reminderDate = (iso: string) =>
+  dayjs(iso).format(dayjs(iso).year() === dayjs().year() ? 'dddd, D. MMMM, H [Uhr]' : 'dddd, D. MMMM YYYY, H [Uhr]');
 
 export function useReminder() {
   const qc = useQueryClient();
@@ -20,19 +39,25 @@ export function useReminder() {
     onSuccess: onDone,
     onError,
   });
+  const meter = useMutation({
+    mutationFn: ({ id, interval }: { id: string; interval: ReminderInterval | null }) => put<ReminderState>(`/me/reminder/meters/${id}`, { interval }),
+    onSuccess: onDone,
+    onError,
+  });
   const skip = useMutation({
     mutationFn: (which: 'current' | 'next' | 'none') => post<ReminderState>('/me/reminder/skip', { which }),
     onSuccess: onDone,
     onError,
   });
-  return { state, update, skip };
+  return { state, update, meter, skip };
 }
 
 /** Einstellungen: Rhythmus, E-Mail, Termine überspringen. */
 export function ReminderSettings({ mailAvailable }: { mailAvailable: boolean }) {
-  const { state, update, skip } = useReminder();
+  const { state, update, meter, skip } = useReminder();
   const r = state.data;
   if (!r) return null;
+  const own = r.meters.filter((m) => m.interval !== null).length;
   const skippingNext = !!r.skipUntil && !!r.next && r.skipUntil >= r.next;
 
   return (
@@ -42,20 +67,38 @@ export function ReminderSettings({ mailAvailable }: { mailAvailable: boolean }) 
           <IconBell size={18} />
           <Text fw={600}>Erinnerung ans Ablesen</Text>
         </Group>
-        <SegmentedControl
+        <Select
+          label="Standard für alle Zähler"
+          description={INTERVAL_HINT[r.interval]}
+          data={INTERVALS}
           value={r.interval}
-          onChange={(v) => update.mutate({ interval: v as ReminderInterval })}
-          data={[
-            { value: 'OFF', label: 'Aus' },
-            { value: 'WEEKLY', label: 'Wöchentlich' },
-            { value: 'MONTHLY', label: 'Monatlich' },
-          ]}
+          allowDeselect={false}
+          onChange={(v) => v && update.mutate({ interval: v as ReminderInterval })}
         />
-        {r.interval !== 'OFF' && (
+        <Divider label={own ? `Je Zähler (${own} mit eigenem Rhythmus)` : 'Je Zähler'} labelPosition="left" />
+        {r.meters.map((m) => (
+          <Group key={m.id} justify="space-between" wrap="nowrap" gap="sm">
+            <div>
+              <Text size="sm">{m.name}</Text>
+              <Text size="xs" c="dimmed">
+                {m.next ? `Nächster Termin: ${reminderDate(m.next)}` : 'Keine Erinnerung'}
+              </Text>
+            </div>
+            <Select
+              w={210}
+              size="xs"
+              aria-label={`Rhythmus für ${m.name}`}
+              allowDeselect={false}
+              data={[{ value: 'DEFAULT', label: `Standard (${INTERVAL_LABEL[r.interval]})` }, ...INTERVALS]}
+              value={m.interval ?? 'DEFAULT'}
+              onChange={(v) => v && meter.mutate({ id: m.id, interval: v === 'DEFAULT' ? null : (v as ReminderInterval) })}
+            />
+          </Group>
+        ))}
+        {r.enabled && (
           <>
             <Text size="sm" c="dimmed">
-              {r.interval === 'WEEKLY' ? 'Jeden Montag um 9 Uhr' : 'Am 1. jedes Monats um 9 Uhr'} – in der App so lange, bis alle Zähler abgelesen sind.
-              Wer schon am Vortag abliest, wird gar nicht erst erinnert.
+              In der App wird so lange erinnert, bis alle fälligen Zähler abgelesen sind. Wer schon am Vortag abliest, wird gar nicht erst erinnert.
             </Text>
             <Switch
               checked={r.email}
