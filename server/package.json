@@ -1,6 +1,6 @@
 {
   "name": "meterbook-server",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "MeterBook backend – Zählerstände, Verbrauch, Kosten, Berichte",
   "scripts": {
