@@ -1,3 +1,5 @@
+// Version: 2026-11-10
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
