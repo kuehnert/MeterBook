@@ -87,7 +87,7 @@ listOf("release" to "meterbook", "debug" to "meterbook-dev").forEach { (type, pr
 val repoDir = rootProject.layout.projectDirectory.dir("..").asFile
 val publishApk = tasks.register<Exec>("publishReleaseApk") {
     workingDir = repoDir
-    commandLine("node", "scripts/publish-apk.mjs", appVersion)
+    commandLine("node", "scripts/publish-apk.mjs") // Version liest das Skript aus dieser Datei
     onlyIf("Zugangsdaten für den Store vorhanden") {
         val found = System.getenv("METERBOOK_STORE_ENV") != null || repoDir.resolve("scripts/apk-store.env").exists()
         if (!found) logger.lifecycle("publishReleaseApk: keine scripts/apk-store.env – APK nicht hochgeladen.")
