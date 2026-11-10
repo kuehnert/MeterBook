@@ -12,3 +12,6 @@ web/dist
 
 # Zugangsdaten für den APK-Store (scripts/publish-apk.mjs)
 scripts/apk-store.env
+
+# Eigene Fotos und Vorlagen, nicht im Repo
+/contrib/
