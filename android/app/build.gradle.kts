@@ -1,3 +1,5 @@
+// Version: 2026-11-10
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -78,3 +80,18 @@ listOf("release" to "meterbook", "debug" to "meterbook-dev").forEach { (type, pr
     }
     tasks.matching { it.name == "assemble${type.replaceFirstChar { it.uppercase() }}" }.configureEach { finalizedBy(copy) }
 }
+
+// Die echte App nach dem Kopieren in den MeterBook-Store laden (kuehnert.online/meterbook),
+// siehe scripts/publish-apk.mjs. Ohne Zugangsdaten (scripts/apk-store.env oder
+// METERBOOK_STORE_ENV) nur ein Hinweis; mit -PnoPublish wird nie hochgeladen.
+val repoDir = rootProject.layout.projectDirectory.dir("..").asFile
+val publishApk = tasks.register<Exec>("publishReleaseApk") {
+    workingDir = repoDir
+    commandLine("node", "scripts/publish-apk.mjs", appVersion)
+    onlyIf("Zugangsdaten für den Store vorhanden") {
+        val found = System.getenv("METERBOOK_STORE_ENV") != null || repoDir.resolve("scripts/apk-store.env").exists()
+        if (!found) logger.lifecycle("publishReleaseApk: keine scripts/apk-store.env – APK nicht hochgeladen.")
+        found && !project.hasProperty("noPublish")
+    }
+}
+tasks.named("copyReleaseApk") { finalizedBy(publishApk) }
