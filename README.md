@@ -157,3 +157,5 @@ cd web && npm test                             # Tests der Datums- und Zahlenein
 ```
 
 Android: Ordner `android/` in Android Studio öffnen. `./gradlew assembleDebug` baut **MeterBook Dev**, `./gradlew assembleRelease` die echte App.
+
+`assembleRelease` lädt die App danach in den MeterBook-Store (RustFS auf dem Heimserver), aus dem [kuehnert.online/meterbook](https://kuehnert.online/meterbook/) den Download anbietet: `downloads/MeterBook-X.Y.Z.apk` und `releases/latest.json`. Dafür braucht es `scripts/apk-store.env` (nicht eingecheckt) mit `STORE_ENDPOINT`, `STORE_ACCESS_KEY` und `STORE_SECRET_KEY`. Fehlt die Datei, wird nur nicht hochgeladen; `-PnoPublish` lässt den Upload aus. Von Hand: `node scripts/publish-apk.mjs [X.Y.Z] [--dry-run]`, beim ersten Mal mit `--setup` (legt den Bucket an und erlaubt anonymes Lesen).

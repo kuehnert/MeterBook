@@ -9,3 +9,6 @@ node_modules
 web/dist
 *.tsbuildinfo
 /apk
+
+# Zugangsdaten für den APK-Store (scripts/publish-apk.mjs)
+scripts/apk-store.env
