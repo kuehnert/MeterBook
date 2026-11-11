@@ -128,8 +128,12 @@ async function request(store, method, objectKey, query, body, headers, ok = [200
   return response;
 }
 
-const put = (store, objectKey, body, contentType) =>
-  request(store, 'PUT', objectKey, {}, Buffer.isBuffer(body) ? body : Buffer.from(body), { 'content-type': contentType });
+// Was "das Neueste" sagt, darf Cloudflare nicht zwischenspeichern, sonst sehen Seite und Besucher eine neue Version spät.
+const put = (store, objectKey, body, contentType, cacheControl) =>
+  request(store, 'PUT', objectKey, {}, Buffer.isBuffer(body) ? body : Buffer.from(body), {
+    'content-type': contentType,
+    ...(cacheControl ? { 'cache-control': cacheControl } : {}),
+  });
 
 // ---- Wohin ----------------------------------------------------------------------------------
 
@@ -154,8 +158,8 @@ const release = { version, published: new Date().toISOString().replace(/\.\d{3}Z
 const json = JSON.stringify(release, null, 2) + '\n';
 const uploads = [
   [keyIn(target, `downloads/MeterBook-${version}.apk`), apk, 'application/vnd.android.package-archive'],
-  [keyIn(target, `releases/${version}.json`), json, 'application/json'],
-  [keyIn(target, 'releases/latest.json'), json, 'application/json'],
+  [keyIn(target, `releases/${version}.json`), json, 'application/json', 'no-cache'],
+  [keyIn(target, 'releases/latest.json'), json, 'application/json', 'no-cache'],
 ];
 
 console.log(`MeterBook ${version} → ${target.name}: ${target.endpoint}/${target.bucket}`);
@@ -176,8 +180,8 @@ if (flag('--setup')) {
 }
 
 // Die App zuerst, latest.json zuletzt: die Seite zeigt nie eine Version, deren APK noch fehlt.
-for (const [k, body, type] of uploads) {
-  await put(target, k, body, type);
+for (const [k, body, type, cacheControl] of uploads) {
+  await put(target, k, body, type, cacheControl);
   console.log(`  ${k}`);
 }
 console.log('Fertig.');
