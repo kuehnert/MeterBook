@@ -1,3 +1,4 @@
+# Version: 2026-11-11
 node_modules
 /data
 .env
@@ -12,6 +13,8 @@ web/dist
 
 # Zugangsdaten für den APK-Store (scripts/publish-apk.mjs)
 scripts/apk-store*.env
+android/keystore.properties
+*.jks
 
 # Eigene Fotos und Vorlagen, nicht im Repo
 /contrib/
