@@ -1,4 +1,5 @@
 # MeterBook
+<!-- Version: 2026-11-11 -->
 
 Zählerstände per Foto erfassen, Verbrauch und Kosten auswerten. Selbst gehostet.
 
@@ -158,4 +159,21 @@ cd web && npm test                             # Tests der Datums- und Zahlenein
 
 Android: Ordner `android/` in Android Studio öffnen. `./gradlew assembleDebug` baut **MeterBook Dev**, `./gradlew assembleRelease` die echte App.
 
-`assembleRelease` lädt die App danach in den MeterBook-Store (RustFS auf dem Heimserver), aus dem [kuehnert.online/meterbook](https://kuehnert.online/meterbook/) den Download anbietet: `downloads/MeterBook-X.Y.Z.apk` und `releases/latest.json`. Dafür braucht es `scripts/apk-store.env` (nicht eingecheckt) mit `STORE_ENDPOINT`, `STORE_ACCESS_KEY` und `STORE_SECRET_KEY`. Fehlt die Datei, wird nur nicht hochgeladen; `-PnoPublish` lässt den Upload aus. Von Hand: `node scripts/publish-apk.mjs [X.Y.Z] [--dry-run]`, beim ersten Mal mit `--setup` (legt den Bucket an und erlaubt anonymes Lesen).
+Die App gibt es zum Download auf [kuehnert.online/meterbook](https://kuehnert.online/meterbook/), aus zwei Stores: `downloads/MeterBook-X.Y.Z.apk`, `releases/X.Y.Z.json` und `releases/latest.json`.
+
+| | Staging | Produktion |
+|---|---|---|
+| Store | RustFS auf dem Heimserver | Cloudflare R2, Bucket `meterbook` |
+| Zugangsdaten | `scripts/apk-store-staging.env` | `scripts/apk-store-production.env` |
+| Seite | staging.kuehnert.online/meterbook | kuehnert.online/meterbook |
+| Hochladen | automatisch nach `./gradlew assembleRelease` | von Hand: `./gradlew publishProductionApk` |
+
+Beide Dateien sind nicht eingecheckt und enthalten `STORE_ENDPOINT`, `STORE_ACCESS_KEY` und `STORE_SECRET_KEY`, für R2 dazu `STORE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com` und `STORE_REGION=auto`.
+
+So kommt eine neue App-Version heraus:
+
+1. `./gradlew assembleRelease` baut die APK und lädt sie nach Staging. Fehlt `scripts/apk-store-staging.env`, wird nur nicht hochgeladen; `-PnoPublish` lässt den Upload aus.
+2. Auf staging.kuehnert.online/meterbook herunterladen und ausprobieren.
+3. `./gradlew publishProductionApk` (oder `node scripts/publish-apk.mjs --production`) lädt dieselbe APK nach R2. Es lädt nur hoch, wenn Staging diese Version mit derselben Prüfsumme hat; `--force` lässt die Prüfung aus, etwa wenn der Heimserver nicht erreichbar ist.
+
+Von Hand geht beides auch mit Version und Probelauf: `node scripts/publish-apk.mjs [X.Y.Z] [--production] [--dry-run]`. Beim ersten Mal auf einem neuen RustFS legt `--setup` den Bucket an und erlaubt anonymes Lesen; bei R2 geht beides im Cloudflare-Dashboard.
