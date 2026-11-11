@@ -2,7 +2,7 @@
 // Lädt die Android-App in einen MeterBook-Store (RustFS, MinIO, Cloudflare R2 oder ein anderer
 // S3-Speicher), aus dem kuehnert.online/meterbook den Download anbietet. Zwei Stores:
 //
-//   Staging     scripts/apk-store.env              der RustFS im Heimnetz, für staging.kuehnert.online
+//   Staging     scripts/apk-store-staging.env      der RustFS im Heimnetz, für staging.kuehnert.online
 //   Produktion  scripts/apk-store-production.env   der R2-Bucket, für kuehnert.online
 //
 //   node scripts/publish-apk.mjs [X.Y.Z] [--dry-run] [--setup]   nach Staging (macht auch assembleRelease)
@@ -62,7 +62,7 @@ const apk = readFileSync(apkFile);
 
 // ---- Zugangsdaten ---------------------------------------------------------------------------
 
-const STAGING_ENV = process.env.METERBOOK_STORE_ENV ?? join(root, 'scripts', 'apk-store.env');
+const STAGING_ENV = process.env.METERBOOK_STORE_ENV ?? join(root, 'scripts', 'apk-store-staging.env');
 const PRODUCTION_ENV = join(root, 'scripts', 'apk-store-production.env');
 
 /** Der Store aus einer Datei (Werte aus der Umgebung haben Vorrang). */

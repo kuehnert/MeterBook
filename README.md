@@ -164,7 +164,7 @@ Die App gibt es zum Download auf [kuehnert.online/meterbook](https://kuehnert.on
 | | Staging | Produktion |
 |---|---|---|
 | Store | RustFS auf dem Heimserver | Cloudflare R2, Bucket `meterbook` |
-| Zugangsdaten | `scripts/apk-store.env` | `scripts/apk-store-production.env` |
+| Zugangsdaten | `scripts/apk-store-staging.env` | `scripts/apk-store-production.env` |
 | Seite | staging.kuehnert.online/meterbook | kuehnert.online/meterbook |
 | Hochladen | automatisch nach `./gradlew assembleRelease` | von Hand: `./gradlew publishProductionApk` |
 
@@ -172,7 +172,7 @@ Beide Dateien sind nicht eingecheckt und enthalten `STORE_ENDPOINT`, `STORE_ACCE
 
 So kommt eine neue App-Version heraus:
 
-1. `./gradlew assembleRelease` baut die APK und lädt sie nach Staging. Fehlt `scripts/apk-store.env`, wird nur nicht hochgeladen; `-PnoPublish` lässt den Upload aus.
+1. `./gradlew assembleRelease` baut die APK und lädt sie nach Staging. Fehlt `scripts/apk-store-staging.env`, wird nur nicht hochgeladen; `-PnoPublish` lässt den Upload aus.
 2. Auf staging.kuehnert.online/meterbook herunterladen und ausprobieren.
 3. `./gradlew publishProductionApk` (oder `node scripts/publish-apk.mjs --production`) lädt dieselbe APK nach R2. Es lädt nur hoch, wenn Staging diese Version mit derselben Prüfsumme hat; `--force` lässt die Prüfung aus, etwa wenn der Heimserver nicht erreichbar ist.
 
