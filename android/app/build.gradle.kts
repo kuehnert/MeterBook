@@ -1,9 +1,29 @@
 // Version: 2026-11-11
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+}
+
+// Der feste Signaturschlüssel der echten App: lokal aus android/keystore.properties (nicht eingecheckt),
+// in GitHub Actions aus den Umgebungsvariablen METERBOOK_KEYSTORE_FILE, _PASSWORD, METERBOOK_KEY_ALIAS, _PASSWORD.
+// Ohne ihn signiert ein Release-Build mit dem Debug-Schlüssel dieses Rechners: läuft, lässt sich aber
+// nicht über eine veröffentlichte App installieren.
+val signing: Map<String, String>? = run {
+    val file = rootProject.file("keystore.properties")
+    val values = if (file.exists()) {
+        Properties().apply { file.inputStream().use(::load) }.let { p -> p.stringPropertyNames().associateWith { p.getProperty(it) } }
+    } else {
+        mapOf(
+            "storeFile" to System.getenv("METERBOOK_KEYSTORE_FILE"),
+            "storePassword" to System.getenv("METERBOOK_KEYSTORE_PASSWORD"),
+            "keyAlias" to System.getenv("METERBOOK_KEY_ALIAS"),
+            "keyPassword" to System.getenv("METERBOOK_KEY_PASSWORD"),
+        ).filterValues { !it.isNullOrEmpty() }.mapValues { it.value!! }
+    }
+    values.takeIf { v -> listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all { !v[it].isNullOrEmpty() } }
 }
 
 android {
@@ -18,6 +38,17 @@ android {
         versionName = "0.3.3"
     }
 
+    signingConfigs {
+        if (signing != null) {
+            create("release") {
+                storeFile = file(signing.getValue("storeFile"))
+                storePassword = signing.getValue("storePassword")
+                keyAlias = signing.getValue("keyAlias")
+                keyPassword = signing.getValue("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         // Testversion neben der echten App: eigene ID, eigener Name, eigene Anmeldung
         debug {
@@ -29,8 +60,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Bis ein eigener Signaturschlüssel eingerichtet ist, mit dem Debug-Schlüssel signieren.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             resValue("string", "app_name", "MeterBook")
         }
     }
@@ -79,28 +109,4 @@ listOf("release" to "meterbook", "debug" to "meterbook-dev").forEach { (type, pr
         rename { "$prefix-$appVersion.apk" }
     }
     tasks.matching { it.name == "assemble${type.replaceFirstChar { it.uppercase() }}" }.configureEach { finalizedBy(copy) }
-}
-
-// Die echte App nach dem Kopieren in den Staging-Store laden (staging.kuehnert.online/meterbook),
-// siehe scripts/publish-apk.mjs. Ohne Zugangsdaten (scripts/apk-store-staging.env oder
-// METERBOOK_STORE_ENV) nur ein Hinweis; mit -PnoPublish wird nie hochgeladen.
-val repoDir = rootProject.layout.projectDirectory.dir("..").asFile
-val publishApk = tasks.register<Exec>("publishReleaseApk") {
-    workingDir = repoDir
-    commandLine("node", "scripts/publish-apk.mjs") // Version liest das Skript aus dieser Datei
-    onlyIf("Zugangsdaten für den Store vorhanden") {
-        val found = System.getenv("METERBOOK_STORE_ENV") != null || repoDir.resolve("scripts/apk-store-staging.env").exists()
-        if (!found) logger.lifecycle("publishReleaseApk: keine scripts/apk-store-staging.env – APK nicht hochgeladen.")
-        found && !project.hasProperty("noPublish")
-    }
-}
-tasks.named("copyReleaseApk") { finalizedBy(publishApk) }
-
-// Dieselbe APK in die Produktion (kuehnert.online/meterbook), nur von Hand: ./gradlew publishProductionApk.
-// Das Skript prüft, dass Staging diese Version mit derselben Prüfsumme hat.
-tasks.register<Exec>("publishProductionApk") {
-    group = "publishing"
-    description = "Lädt die schon auf Staging veröffentlichte APK in den Produktions-Store (R2)."
-    workingDir = repoDir
-    commandLine("node", "scripts/publish-apk.mjs", "--production")
 }

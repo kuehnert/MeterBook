@@ -1,35 +1,21 @@
 #!/usr/bin/env node
-// Lädt die Android-App in einen MeterBook-Store (RustFS, MinIO, Cloudflare R2 oder ein anderer
-// S3-Speicher), aus dem kuehnert.online/meterbook den Download anbietet. Zwei Stores:
+// Lädt die Android-App in den MeterBook-Store (ein S3-Bucket, Cloudflare R2), aus dem
+// kuehnert.online/meterbook den Download anbietet, auf Staging wie in der Produktion. Das macht
+// GitHub Actions bei jedem Versions-Tag (.github/workflows/apk.yml); von Hand geht es auch:
 //
-//   Staging     scripts/apk-store-staging.env      der RustFS im Heimnetz, für staging.kuehnert.online
-//   Produktion  scripts/apk-store-production.env   der R2-Bucket, für kuehnert.online
-//
-//   node scripts/publish-apk.mjs [X.Y.Z] [--dry-run] [--setup]   nach Staging (macht auch assembleRelease)
-//   node scripts/publish-apk.mjs [X.Y.Z] --production [--dry-run] [--force]
+//   node scripts/publish-apk.mjs [X.Y.Z] [--dry-run] [--env DATEI]
 //
 // Ohne Version gilt die versionName aus android/app/build.gradle.kts. Hochgeladen wird
 // apk/meterbook-X.Y.Z.apk (das baut ./gradlew assembleRelease) als
 //   downloads/MeterBook-X.Y.Z.apk   die App
 //   releases/X.Y.Z.json             was zu dieser Version gehört
 //   releases/latest.json            die neueste, die die Seite liest
-//
-// --production lädt nur hoch, was schon auf Staging liegt: dieselbe Version mit derselben
-// Prüfsumme. So kommt in die Produktion genau die APK, die auf Staging ausprobiert wurde.
-// --force lässt diese Prüfung aus (etwa wenn der Heimserver nicht erreichbar ist).
-// --setup legt vorher den Bucket an und erlaubt anonymes Lesen (einmalig, nur RustFS/MinIO;
-// bei R2 gibt es den Bucket und den öffentlichen Zugriff im Cloudflare-Dashboard).
+// Die beiden JSON-Dateien bekommen Cache-Control: no-cache, damit Cloudflare sie nicht zwischenspeichert.
 // --dry-run zeigt nur, was hochgeladen würde.
-// --env DATEI nimmt eine andere Datei als die des Stores.
 //
-// Zugangsdaten je Store in seiner Datei (nicht eingecheckt). Für Staging auch METERBOOK_STORE_ENV,
-// einzelne Werte auch aus der Umgebung (die gelten dann für beide Stores):
-//   STORE_ENDPOINT=http://192.168.168.2:9000   STORE_BUCKET=meterbook   STORE_REGION=auto
-//   STORE_ACCESS_KEY=...                       STORE_SECRET_KEY=...
-//   STORE_PREFIX=                              (optional: Ordner im Bucket)
-// R2: STORE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com, STORE_REGION=auto.
-// Statt STORE_ENDPOINT/_ACCESS_KEY/_SECRET_KEY/_REGION gehen auch die ART_*-Namen aus
-// Dungeon Remasters art_store.env; den Bucket nimmt das Skript aber nie von dort (Standard: meterbook).
+// Zugangsdaten aus der Umgebung (so in GitHub Actions) oder aus scripts/apk-store.env (nicht eingecheckt):
+//   STORE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com   STORE_BUCKET=meterbook   STORE_REGION=auto
+//   STORE_ACCESS_KEY=...   STORE_SECRET_KEY=...   STORE_PREFIX= (optional: Ordner im Bucket)
 // Braucht Node 18 oder neuer, keine Pakete.
 //
 // Version: 2026-11-11
@@ -51,7 +37,6 @@ const fail = (message) => {
   process.exit(1);
 };
 
-const production = flag('--production');
 const gradle = readFileSync(join(root, 'android/app/build.gradle.kts'), 'utf8');
 const version = args.find((a, i) => /^\d+\.\d+\.\d+$/.test(a) && args[i - 1] !== '--env') ?? gradle.match(/versionName = "([^"]+)"/)?.[1];
 if (!version) fail('Keine Version gefunden.');
@@ -62,8 +47,7 @@ const apk = readFileSync(apkFile);
 
 // ---- Zugangsdaten ---------------------------------------------------------------------------
 
-const STAGING_ENV = process.env.METERBOOK_STORE_ENV ?? join(root, 'scripts', 'apk-store-staging.env');
-const PRODUCTION_ENV = join(root, 'scripts', 'apk-store-production.env');
+const ENV_FILE = option('--env') ?? join(root, 'scripts', 'apk-store.env');
 
 /** Der Store aus einer Datei (Werte aus der Umgebung haben Vorrang). */
 function loadStore(envFile, name) {
@@ -128,25 +112,17 @@ async function request(store, method, objectKey, query, body, headers, ok = [200
   return response;
 }
 
-const put = (store, objectKey, body, contentType) =>
-  request(store, 'PUT', objectKey, {}, Buffer.isBuffer(body) ? body : Buffer.from(body), { 'content-type': contentType });
+// Was "das Neueste" sagt, darf Cloudflare nicht zwischenspeichern, sonst sehen Seite und Besucher eine neue Version spät.
+const put = (store, objectKey, body, contentType, cacheControl) =>
+  request(store, 'PUT', objectKey, {}, Buffer.isBuffer(body) ? body : Buffer.from(body), {
+    'content-type': contentType,
+    ...(cacheControl ? { 'cache-control': cacheControl } : {}),
+  });
 
 // ---- Wohin ----------------------------------------------------------------------------------
 
-const target = production ? loadStore(option('--env') ?? PRODUCTION_ENV, 'Produktion') : loadStore(option('--env') ?? STAGING_ENV, 'Staging');
+const target = loadStore(ENV_FILE, 'MeterBook-Store');
 const checksum = sha256(apk);
-
-// Produktion nur mit dem, was auf Staging liegt: gleiche Version, gleiche Prüfsumme.
-if (production && !flag('--force')) {
-  const staging = loadStore(STAGING_ENV, 'Staging');
-  const response = await request(staging, 'GET', keyIn(staging, `releases/${version}.json`), {}, Buffer.alloc(0), {}, [200, 404]);
-  if (response.status === 404) fail(`Version ${version} liegt noch nicht auf Staging. Erst dort veröffentlichen ("./gradlew assembleRelease" oder ohne --production), oder mit --force ohne diese Prüfung.`);
-  const onStaging = await response.json();
-  if (onStaging.apk?.sha256 !== checksum) {
-    fail(`apk/meterbook-${version}.apk ist nicht die APK auf Staging (Prüfsumme ${checksum.slice(0, 12)}… statt ${String(onStaging.apk?.sha256).slice(0, 12)}…). Neu gebaut? Dann erst nach Staging, oder mit --force.`);
-  }
-  console.log(`Staging hat ${version} mit derselben Prüfsumme – geht in die Produktion.`);
-}
 
 // ---- Hochladen ------------------------------------------------------------------------------
 
@@ -154,8 +130,8 @@ const release = { version, published: new Date().toISOString().replace(/\.\d{3}Z
 const json = JSON.stringify(release, null, 2) + '\n';
 const uploads = [
   [keyIn(target, `downloads/MeterBook-${version}.apk`), apk, 'application/vnd.android.package-archive'],
-  [keyIn(target, `releases/${version}.json`), json, 'application/json'],
-  [keyIn(target, 'releases/latest.json'), json, 'application/json'],
+  [keyIn(target, `releases/${version}.json`), json, 'application/json', 'no-cache'],
+  [keyIn(target, 'releases/latest.json'), json, 'application/json', 'no-cache'],
 ];
 
 console.log(`MeterBook ${version} → ${target.name}: ${target.endpoint}/${target.bucket}`);
@@ -164,20 +140,9 @@ if (flag('--dry-run')) {
   process.exit(0);
 }
 
-if (flag('--setup')) {
-  const created = await request(target, 'PUT', '', {}, Buffer.alloc(0), {}, [200, 409]);
-  console.log(created.status === 409 ? '  Bucket gibt es schon' : '  Bucket angelegt');
-  const policy = {
-    Version: '2012-10-17',
-    Statement: [{ Effect: 'Allow', Principal: { AWS: ['*'] }, Action: ['s3:GetObject'], Resource: [`arn:aws:s3:::${target.bucket}/*`] }],
-  };
-  await request(target, 'PUT', '', { policy: '' }, Buffer.from(JSON.stringify(policy)), { 'content-type': 'application/json' }, [200, 204]);
-  console.log('  Anonymes Lesen erlaubt');
-}
-
 // Die App zuerst, latest.json zuletzt: die Seite zeigt nie eine Version, deren APK noch fehlt.
-for (const [k, body, type] of uploads) {
-  await put(target, k, body, type);
+for (const [k, body, type, cacheControl] of uploads) {
+  await put(target, k, body, type, cacheControl);
   console.log(`  ${k}`);
 }
 console.log('Fertig.');

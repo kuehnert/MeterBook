@@ -1,0 +1,73 @@
+name: Android-App
+
+# Version: 2026-11-11
+# Releases: Git-Tag vX.Y.Z (siehe scripts/release.mjs) → signierte APK, als Artefakt und im
+# MeterBook-Store (Cloudflare R2), aus dem kuehnert.online/meterbook den Download anbietet.
+# Von Hand (Run workflow) baut er die APK nur, ohne zu veröffentlichen.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      # Signaturschlüssel (siehe README, „Android-App veröffentlichen“): ohne ihn bricht der Lauf ab,
+      # denn eine mit einem Wegwerf-Schlüssel signierte APK ließe sich nicht als Update installieren.
+      KEYSTORE_BASE64: ${{ secrets.METERBOOK_KEYSTORE_BASE64 }}
+      METERBOOK_KEYSTORE_PASSWORD: ${{ secrets.METERBOOK_KEYSTORE_PASSWORD }}
+      METERBOOK_KEY_ALIAS: meterbook
+      METERBOOK_KEY_PASSWORD: ${{ secrets.METERBOOK_KEYSTORE_PASSWORD }}
+      # Zugangsdaten für den Store (R2-API-Token mit Schreibrecht nur auf diesen Bucket).
+      STORE_ENDPOINT: ${{ secrets.METERBOOK_STORE_ENDPOINT }}
+      STORE_ACCESS_KEY: ${{ secrets.METERBOOK_STORE_ACCESS_KEY }}
+      STORE_SECRET_KEY: ${{ secrets.METERBOOK_STORE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tag passt zur App-Version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          expected="v$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' android/app/build.gradle.kts)"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zur versionName $expected in android/app/build.gradle.kts"
+            exit 1
+          fi
+
+      - name: Signaturschlüssel bereitstellen
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$METERBOOK_KEYSTORE_PASSWORD" ]; then
+            echo "::error::Secrets METERBOOK_KEYSTORE_BASE64 oder METERBOOK_KEYSTORE_PASSWORD fehlen."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/meterbook-release.jks"
+          echo "METERBOOK_KEYSTORE_FILE=$RUNNER_TEMP/meterbook-release.jks" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: APK bauen
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: APK als Artefakt aufheben
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeterBook-apk
+          path: apk/meterbook-*.apk
+          retention-days: 30
+
+      - name: Im MeterBook-Store veröffentlichen
+        if: startsWith(github.ref, 'refs/tags/v') && env.STORE_ENDPOINT != '' && env.STORE_ACCESS_KEY != '' && env.STORE_SECRET_KEY != ''
+        run: node scripts/publish-apk.mjs
+
+      - name: Hinweis, falls die Store-Zugangsdaten fehlen
+        if: startsWith(github.ref, 'refs/tags/v') && (env.STORE_ENDPOINT == '' || env.STORE_ACCESS_KEY == '' || env.STORE_SECRET_KEY == '')
+        run: echo "::warning::Secrets METERBOOK_STORE_ENDPOINT, METERBOOK_STORE_ACCESS_KEY oder METERBOOK_STORE_SECRET_KEY fehlen – APK gebaut, aber nicht veröffentlicht."
