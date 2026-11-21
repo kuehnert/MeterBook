@@ -1,5 +1,5 @@
 # MeterBook
-<!-- Version: 2026-11-11 -->
+<!-- Version: 2026-11-21 -->
 
 Zählerstände per Foto erfassen, Verbrauch und Kosten auswerten. Selbst gehostet.
 
@@ -161,9 +161,9 @@ Android: Ordner `android/` in Android Studio öffnen. `./gradlew assembleDebug` 
 
 ### Android-App veröffentlichen
 
-Die App gibt es zum Download auf [kuehnert.online/meterbook](https://kuehnert.online/meterbook/) (und staging.kuehnert.online/meterbook), aus dem MeterBook-Store: einem Cloudflare-R2-Bucket `meterbook` mit `downloads/MeterBook-X.Y.Z.apk`, `releases/X.Y.Z.json` und `releases/latest.json`.
+Die App gibt es zum Download auf [kuehnert.online/meterbook](https://kuehnert.online/meterbook/) (und staging.kuehnert.online/meterbook), aus dem gemeinsamen App-Store unter `https://store.kuehnert.online/meterbook`: `latest.json` (die neueste Version), `releases.json` (alle noch vorhandenen) und die APK unter `/meterbook/X.Y.Z/meterbook-X.Y.Z.apk`.
 
-Gebaut, signiert und veröffentlicht wird sie bei GitHub: `node scripts/release.mjs X.Y.Z --push` setzt das Tag `vX.Y.Z`, und `.github/workflows/apk.yml` baut daraus die APK, hängt sie als Artefakt an und lädt sie in den Store (gleichzeitig baut `docker.yml` das Server-Image). Von Hand gestartet (Run workflow) baut er nur.
+Gebaut, signiert und veröffentlicht wird sie bei GitHub: `node scripts/release.mjs X.Y.Z --push` setzt das Tag `vX.Y.Z`, und `.github/workflows/apk.yml` baut daraus die APK, hängt sie als Artefakt an und lädt sie mit dem `publish.mjs` des Stores hoch (gleichzeitig baut `docker.yml` das Server-Image). Von Hand gestartet (Run workflow) baut er nur.
 
 Einmalig einrichten:
 
@@ -175,12 +175,15 @@ Einmalig einrichten:
    ```
 
    Lokal signiert `./gradlew assembleRelease` damit, wenn `android/keystore.properties` (nicht eingecheckt) auf den Schlüssel zeigt; ohne die Datei mit dem Debug-Schlüssel des Rechners – solche APKs lassen sich nicht über die veröffentlichte App installieren.
-2. **Store.** In Cloudflare unter R2 ein API-Token mit Object Read & Write nur für den Bucket `meterbook`, dann:
+2. **App-Store.** Auf der Admin-Seite (`https://store.kuehnert.online/admin`) das Programm `meterbook` anlegen und dort einen Upload-Schlüssel erzeugen, dann:
 
    ```sh
-   gh secret set METERBOOK_STORE_ENDPOINT -R kuehnert/MeterBook     # https://<account-id>.r2.cloudflarestorage.com
-   gh secret set METERBOOK_STORE_ACCESS_KEY -R kuehnert/MeterBook
-   gh secret set METERBOOK_STORE_SECRET_KEY -R kuehnert/MeterBook
+   gh secret set APPSTORE_TOKEN -R kuehnert/MeterBook
    ```
 
-Von Hand geht es auch: `./gradlew assembleRelease`, dann `node scripts/publish-apk.mjs [X.Y.Z] [--dry-run]` mit den Zugangsdaten in `scripts/apk-store.env` (nicht eingecheckt: `STORE_ENDPOINT`, `STORE_ACCESS_KEY`, `STORE_SECRET_KEY`). `latest.json` und `releases/X.Y.Z.json` bekommen `Cache-Control: no-cache`, damit Cloudflare eine neue Version nicht verschluckt.
+Von Hand geht es auch: `./gradlew assembleRelease`, dann mit `APPSTORE_TOKEN` in der Umgebung
+
+```sh
+curl -fsSL https://store.kuehnert.online/publish.mjs -o publish.mjs
+node publish.mjs publish --app meterbook --version X.Y.Z --file apk:android:apk/meterbook-X.Y.Z.apk [--dry-run]
+```

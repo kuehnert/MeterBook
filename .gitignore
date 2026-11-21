@@ -1,4 +1,4 @@
-# Version: 2026-11-11
+# Version: 2026-11-21
 node_modules
 /data
 .env
@@ -11,8 +11,7 @@ web/dist
 *.tsbuildinfo
 /apk
 
-# Zugangsdaten für den APK-Store (scripts/publish-apk.mjs)
-scripts/apk-store*.env
+# Signaturschlüssel der Android-App
 android/keystore.properties
 *.jks
 
