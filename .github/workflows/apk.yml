@@ -1,8 +1,8 @@
 name: Android-App
 
-# Version: 2026-11-11
+# Version: 2026-11-21
 # Releases: Git-Tag vX.Y.Z (siehe scripts/release.mjs) → signierte APK, als Artefakt und im
-# MeterBook-Store (Cloudflare R2), aus dem kuehnert.online/meterbook den Download anbietet.
+# App-Store store.kuehnert.online/meterbook, aus dem kuehnert.online/meterbook den Download anbietet.
 # Von Hand (Run workflow) baut er die APK nur, ohne zu veröffentlichen.
 on:
   push:
@@ -22,10 +22,8 @@ jobs:
       METERBOOK_KEYSTORE_PASSWORD: ${{ secrets.METERBOOK_KEYSTORE_PASSWORD }}
       METERBOOK_KEY_ALIAS: meterbook
       METERBOOK_KEY_PASSWORD: ${{ secrets.METERBOOK_KEYSTORE_PASSWORD }}
-      # Zugangsdaten für den Store (R2-API-Token mit Schreibrecht nur auf diesen Bucket).
-      STORE_ENDPOINT: ${{ secrets.METERBOOK_STORE_ENDPOINT }}
-      STORE_ACCESS_KEY: ${{ secrets.METERBOOK_STORE_ACCESS_KEY }}
-      STORE_SECRET_KEY: ${{ secrets.METERBOOK_STORE_SECRET_KEY }}
+      # Upload-Schlüssel für MeterBook im App-Store (von dessen Admin-Seite).
+      APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -64,10 +62,14 @@ jobs:
           path: apk/meterbook-*.apk
           retention-days: 30
 
-      - name: Im MeterBook-Store veröffentlichen
-        if: startsWith(github.ref, 'refs/tags/v') && env.STORE_ENDPOINT != '' && env.STORE_ACCESS_KEY != '' && env.STORE_SECRET_KEY != ''
-        run: node scripts/publish-apk.mjs
-
-      - name: Hinweis, falls die Store-Zugangsdaten fehlen
-        if: startsWith(github.ref, 'refs/tags/v') && (env.STORE_ENDPOINT == '' || env.STORE_ACCESS_KEY == '' || env.STORE_SECRET_KEY == '')
-        run: echo "::warning::Secrets METERBOOK_STORE_ENDPOINT, METERBOOK_STORE_ACCESS_KEY oder METERBOOK_STORE_SECRET_KEY fehlen – APK gebaut, aber nicht veröffentlicht."
+      - name: Im App-Store veröffentlichen
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if [ -z "$APPSTORE_TOKEN" ]; then
+            echo "::error::Secret APPSTORE_TOKEN fehlt – APK gebaut, aber nicht veröffentlicht."
+            exit 1
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          curl -fsSL https://store.kuehnert.online/publish.mjs -o "$RUNNER_TEMP/publish.mjs"
+          node "$RUNNER_TEMP/publish.mjs" publish --app meterbook --version "$version" \
+            --file "apk:android:apk/meterbook-$version.apk"
